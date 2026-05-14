@@ -4,6 +4,7 @@ import { AppProvider } from './contexts/AppContext';
 
 // Páginas de Autenticação e Dashboard
 import { Auth } from './pages/Auth';
+import { ResetPassword } from './pages/ResetPassword'; // 🌟 A IMPORTAÇÃO QUE FALTAVA AQUI!
 import { Dashboard } from './pages/Dashboard';
 import { Profile } from './pages/Profile';
 import { AceitarConvite } from './pages/AceitarConvite';
@@ -31,6 +32,7 @@ function App() {
       <Toaster position="top-right" toastOptions={{ style: { fontFamily: 'Inter, system-ui, sans-serif', fontSize: '14px' } }} />
       <Routes>
         <Route path="/" element={<Auth />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/perfil" element={<Profile />} />
         
