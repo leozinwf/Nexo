@@ -20,6 +20,7 @@ import { Feedbacks } from './pages/Feedbacks';
 import { Admin } from './pages/Admin';
 import { Gestao } from './pages/Gestao';
 import { Empresa } from './pages/Empresa';
+import { Permissions } from './pages/Permissions';
 
 function App() {
   return (
@@ -42,6 +43,7 @@ function App() {
         <Route path="/gestao" element={<Gestao />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/admin/empresa" element={<Empresa />} />
+        <Route path="/admin/permissoes" element={<Permissions />} />
       </Routes>
     </Router>
   );

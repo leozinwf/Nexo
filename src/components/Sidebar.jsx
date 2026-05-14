@@ -3,30 +3,17 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import {
   Clock, MessageSquare, LogOut, Home,
-  History, Database, FileText, Settings, X, Users, Building2
+  History, Database, FileText, Settings, X, Users, Building2, ShieldCheck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { usePermission } from '../hooks/usePermissions';
 
 export function Sidebar({ menuAberto, setMenuAberto }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { temAcesso } = usePermission('usuarios.gerenciar');
+  const { temAcesso: podeAcessarAdmin } = usePermission('admin.configuracoes');
 
-  useEffect(() => {
-    const verificarAdmin = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: perfil } = await supabase
-          .from('perfis')
-          .select('tipo_perfil')
-          .eq('id', user.id)
-          .maybeSingle();
-
-        if (perfil) setIsAdmin(perfil.tipo_perfil === 'admin_master' || perfil.tipo_perfil === 'rh');
-      }
-    };
-    verificarAdmin();
-  }, []);
   const handleLogout = async () => {
     await supabase.auth.signOut();
     toast.success('Sessão encerrada.');
@@ -86,7 +73,7 @@ export function Sidebar({ menuAberto, setMenuAberto }) {
         <div style={menuSection}>Comunicação</div>
         <button style={getEstiloItem('/feedbacks')} onClick={() => navigate('/feedbacks')}><MessageSquare size={16} /> Feedbacks</button>
 
-        {isAdmin && (
+        {podeAcessarAdmin && (
           <>
             <div style={menuSection}>Gestão de Equipe</div>
             <button style={getEstiloItem('/gestao')} onClick={() => navigate('/gestao')}>
@@ -101,6 +88,10 @@ export function Sidebar({ menuAberto, setMenuAberto }) {
             <div style={menuSection}>Empresa</div>
             <button style={getEstiloItem('/admin/empresa')} onClick={() => navigate('/admin/empresa')}>
               <Building2 size={16} /> Dados da Empresa
+            </button>
+
+            <button style={getEstiloItem('/admin/permissoes')} onClick={() => navigate('/admin/permissoes')}>
+              <ShieldCheck size={16} /> Permissões e Cargos
             </button>
           </>
         )}

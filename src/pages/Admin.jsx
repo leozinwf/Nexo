@@ -4,14 +4,18 @@ import { supabase } from '../services/supabase';
 import { Users, Menu, Edit, X, Building, Save, Briefcase, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Sidebar } from '../components/Sidebar';
+import { usePermission } from '../hooks/usePermissions';
+
 
 export function Admin() {
   const navigate = useNavigate();
+  const { temAcesso: podeGerenciarUsuarios } = usePermission('usuarios.gerenciar');
   const [colaboradores, setColaboradores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [menuAberto, setMenuAberto] = useState(false);
   const [abaAtiva, setAbaAtiva] = useState('equipe');
-
+  const [listaRoles, setListaRoles] = useState([]);
+  const [roleSelecionada, setRoleSelecionada] = useState('');
   const [modalAberto, setModalAberto] = useState(false);
   const [usuarioEditando, setUsuarioEditando] = useState(null);
   const [formConfig, setFormConfig] = useState({});
@@ -32,6 +36,9 @@ export function Admin() {
       return navigate('/dashboard');
     }
 
+    const resRoles = await supabase.from('roles').select('id, nome').eq('empresa_id', perfil.empresa_id);
+    if (resRoles.data) setListaRoles(resRoles.data);
+
     setFormConfig({ ...formConfig, empresa_id_admin: perfil.empresa_id });
 
     const resEmpresa = await supabase.from('config_empresa').select('*').eq('empresa_id', perfil.empresa_id).maybeSingle();
@@ -47,20 +54,33 @@ export function Admin() {
     setLoading(false);
   };
 
-  const abrirConfiguracao = (colab) => {
-    setUsuarioEditando(colab);
-    setFormConfig({ ...colab });
-    setModalAberto(true);
-  };
+  const abrirConfiguracao = async (colab) => {
+  setUsuarioEditando(colab);
+  setFormConfig({ ...colab });
+  const { data } = await supabase
+    .from('usuario_roles')
+    .select('role_id')
+    .eq('usuario_id', colab.id)
+    .maybeSingle();
+    
+  setRoleSelecionada(data?.role_id || '');
+  setModalAberto(true);
+};
 
   const salvarColaborador = async (e) => {
-    e.preventDefault();
-    const { error } = await supabase.from('perfis').update(formConfig).eq('id', usuarioEditando.id);
-    if (error) return toast.error("Erro ao salvar dados.");
-    toast.success("Perfil atualizado com sucesso!");
-    setModalAberto(false);
-    carregarDadosIniciais();
-  };
+  e.preventDefault();
+  await supabase.from('perfis').update(formConfig).eq('id', usuarioEditando.id);
+  if (roleSelecionada) {
+    await supabase.from('usuario_roles').delete().eq('usuario_id', usuarioEditando.id);
+    await supabase.from('usuario_roles').insert([
+      { usuario_id: usuarioEditando.id, role_id: roleSelecionada }
+    ]);
+  }
+
+  toast.success("Colaborador atualizado!");
+  setModalAberto(false);
+  carregarDadosIniciais();
+};
 
   const salvarEmpresa = async (e) => {
     e.preventDefault();
@@ -70,41 +90,41 @@ export function Admin() {
   };
 
   const gerarConvite = async (e) => {
-  e.preventDefault();
-  
-  const { data, error } = await supabase.from('convites').insert([
-    { 
-      empresa_id: formConfig.empresa_id_admin, 
-      email: formConvite.email,
-      nome_completo: formConvite.nome_completo,
-      cpf: formConvite.cpf,
-      cargo: formConvite.cargo,
-      departamento: formConvite.departamento
-    }
-  ]).select().single();
+    e.preventDefault();
 
-  if (error) return toast.error("Erro ao gerar convite.");
+    const { data, error } = await supabase.from('convites').insert([
+      {
+        empresa_id: formConfig.empresa_id_admin,
+        email: formConvite.email,
+        nome_completo: formConvite.nome_completo,
+        cpf: formConvite.cpf,
+        cargo: formConvite.cargo,
+        departamento: formConvite.departamento
+      }
+    ]).select().single();
 
-  const linkConvite = `${window.location.origin}/convite/${data.id}`;
-  
-  // E-mail padronizado!
-  const assunto = encodeURIComponent(`Convite de acesso: Sistema de Gestão`);
-  const corpo = encodeURIComponent(
-    `Olá ${formConvite.nome_completo},\n\n` +
-    `Bem-vindo(a) à equipa! O seu perfil de ${formConvite.cargo} já foi pré-cadastrado no nosso sistema.\n\n` +
-    `Para concluir o seu registo, confirmar os seus dados e criar uma palavra-passe segura, por favor clique no link abaixo:\n` +
-    `${linkConvite}\n\n` +
-    `Com os melhores cumprimentos,\nEquipa de Recursos Humanos`
-  );
-  
-  window.open(`mailto:${formConvite.email}?subject=${assunto}&body=${corpo}`);
-  
-  toast.success("Convite gerado! Link aberto no seu e-mail.");
-  setModalConvite(false);
-  setFormConvite({ email: '', nome_completo: '', cpf: '', cargo: '', departamento: '' }); // Limpa o form
-};
+    if (error) return toast.error("Erro ao gerar convite.");
 
-return (
+    const linkConvite = `${window.location.origin}/convite/${data.id}`;
+
+    // E-mail padronizado!
+    const assunto = encodeURIComponent(`Convite de acesso: Sistema de Gestão`);
+    const corpo = encodeURIComponent(
+      `Olá ${formConvite.nome_completo},\n\n` +
+      `Bem-vindo(a) à equipa! O seu perfil de ${formConvite.cargo} já foi pré-cadastrado no nosso sistema.\n\n` +
+      `Para concluir o seu registo, confirmar os seus dados e criar uma palavra-passe segura, por favor clique no link abaixo:\n` +
+      `${linkConvite}\n\n` +
+      `Com os melhores cumprimentos,\nEquipa de Recursos Humanos`
+    );
+
+    window.open(`mailto:${formConvite.email}?subject=${assunto}&body=${corpo}`);
+
+    toast.success("Convite gerado! Link aberto no seu e-mail.");
+    setModalConvite(false);
+    setFormConvite({ email: '', nome_completo: '', cpf: '', cargo: '', departamento: '' }); // Limpa o form
+  };
+
+  return (
     <div className="layout">
       <div className={`overlay ${menuAberto ? 'open' : ''}`} onClick={() => setMenuAberto(false)}></div>
       <Sidebar menuAberto={menuAberto} setMenuAberto={setMenuAberto} />
@@ -118,7 +138,6 @@ return (
 
         <main className="content">
           <div className="doohub-card" style={{ padding: 0, overflow: 'hidden' }}>
-            {/* 1. BARRA DE ABAS (Limpa, só com os botões de navegação) */}
             <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
               <button onClick={() => setAbaAtiva('equipe')} style={{ flex: 1, padding: '1.25rem', border: 'none', background: abaAtiva === 'equipe' ? '#fff' : 'transparent', borderBottom: abaAtiva === 'equipe' ? '3px solid #0067ff' : 'none', fontWeight: 'bold', color: abaAtiva === 'equipe' ? '#0067ff' : '#64748b', cursor: 'pointer' }}>Equipe e Contratos</button>
               <button onClick={() => setAbaAtiva('empresa')} style={{ flex: 1, padding: '1.25rem', border: 'none', background: abaAtiva === 'empresa' ? '#fff' : 'transparent', borderBottom: abaAtiva === 'empresa' ? '3px solid #0067ff' : 'none', fontWeight: 'bold', color: abaAtiva === 'empresa' ? '#0067ff' : '#64748b', cursor: 'pointer' }}>Dados da Empresa</button>
@@ -128,12 +147,15 @@ return (
               {abaAtiva === 'equipe' ? (
                 loading ? <p>Carregando equipe...</p> : (
                   <>
-                    {/* 2. NOVO LOCAL DO BOTÃO: Acima da tabela, apenas na aba Equipe */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                       <h3 style={{ margin: 0, color: '#1e293b' }}>Membros da Equipe</h3>
-                      <button onClick={() => setModalConvite(true)} className="btn-primary">
-                        + Cadastrar Novo Colaborador
-                      </button>
+                      {podeGerenciarUsuarios && (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+                          <button onClick={() => setModalConvite(true)} className="btn-primary">
+                            + Cadastrar Novo Colaborador
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <table className="doohub-table responsive-table">
@@ -179,6 +201,22 @@ return (
                 <div className="input-group"><label>Cargo</label><input className="form-control" value={formConfig.cargo || ''} onChange={e => setFormConfig({ ...formConfig, cargo: e.target.value })} /></div>
                 <div className="input-group"><label>Departamento</label><input className="form-control" value={formConfig.departamento || ''} onChange={e => setFormConfig({ ...formConfig, departamento: e.target.value })} /></div>
                 <div className="input-group" style={{ gridColumn: 'span 2' }}><label>Expediente</label><textarea className="form-control" rows="2" value={formConfig.expediente || ''} onChange={e => setFormConfig({ ...formConfig, expediente: e.target.value })} /></div>
+
+                <div className="input-group" style={{gridColumn: 'span 2', marginTop: '0.5rem'}}>
+                  <label>Nível de Acesso (Permissões no Sistema)</label>
+                  <select 
+                    className="form-control" 
+                    value={roleSelecionada} 
+                    onChange={e => setRoleSelecionada(e.target.value)}
+                    style={{ width: '100%', height: '45px', backgroundColor: '#f8fafc' }}
+                  >
+                    <option value="">Sem acesso especial (Apenas Ponto)</option>
+                    {listaRoles.map(role => (
+                      <option key={role.id} value={role.id}>{role.nome}</option>
+                    ))}
+                  </select>
+                  <small style={{color: '#64748b'}}>Isso define o que o usuário pode ver e fazer no sistema.</small>
+                </div>
               </div>
 
               <div style={{ marginTop: '1.5rem', padding: '1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
