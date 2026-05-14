@@ -6,7 +6,7 @@ import { supabase } from '../services/supabase';
 export function Auth() {
   const navigate = useNavigate();
   // Estado para controlar qual tela mostrar: 'login' ou 'recovery'
-  const [view, setView] = useState('login'); 
+  const [view, setView] = useState('login');
   const [loading, setLoading] = useState(false);
 
   const [email, setEmail] = useState('');
@@ -22,7 +22,7 @@ export function Auth() {
         email,
         password,
       });
-      
+
       if (error) {
         toast.error('Acesso negado. Verifique suas credenciais.');
       } else {
@@ -34,7 +34,7 @@ export function Auth() {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: window.location.origin + '/reset-password', // URL de retorno
       });
-      
+
       if (error) {
         toast.error('Erro ao solicitar recuperação: ' + error.message);
       } else {
@@ -49,15 +49,15 @@ export function Auth() {
     <div style={styles.container}>
       <div style={styles.card}>
         <div style={styles.header}>
-          <img 
-            src="https://dootax.com.br/wp-content/themes/dootax/assets/imgs/logo_dootax_principal.svg" 
-            alt="Dootax Logo" 
-            style={styles.logoImage} 
+          <img
+            src="https://dootax.com.br/wp-content/themes/dootax/assets/imgs/logo_dootax_principal.svg"
+            alt="Dootax Logo"
+            style={styles.logoImage}
           />
-          <h2 style={styles.title}>Portal Nexo</h2>
+          <h2 style={styles.title}>Doo-Hub</h2>
           <p style={styles.subtitle}>
-            {view === 'login' 
-              ? 'Acesse sua conta com o e-mail corporativo' 
+            {view === 'login'
+              ? 'Acesse sua conta com o e-mail corporativo'
               : 'Informe seu e-mail para receber o link de acesso'}
           </p>
         </div>
@@ -79,13 +79,7 @@ export function Auth() {
             <div style={styles.inputGroup}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <label style={styles.label}>Senha</label>
-                <button 
-                  type="button" 
-                  onClick={() => setView('recovery')} 
-                  style={styles.forgotPasswordLink}
-                >
-                  Esqueceu a senha?
-                </button>
+                
               </div>
               <input
                 type="password"
@@ -95,21 +89,28 @@ export function Auth() {
                 required
                 style={styles.input}
               />
+              <button
+                  type="button"
+                  onClick={() => setView('recovery')}
+                  style={styles.forgotPasswordLink}
+                >
+                  Esqueceu a senha?
+                </button>
             </div>
           )}
 
           <button type="submit" disabled={loading} style={styles.button}>
-            {loading 
-              ? 'Processando...' 
-              : view === 'login' ? 'Entrar no Portal' : 'Enviar Link de Recuperação'}
+            {loading
+              ? 'Processando...'
+              : view === 'login' ? 'Entrar' : 'Enviar Link de Recuperação'}
           </button>
         </form>
 
         {view === 'recovery' && (
           <div style={styles.footer}>
-            <button 
-              type="button" 
-              onClick={() => setView('login')} 
+            <button
+              type="button"
+              onClick={() => setView('login')}
               style={styles.toggleButton}
             >
               ← Voltar para o Login
