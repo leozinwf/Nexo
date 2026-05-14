@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabase';
 
 const AppContext = createContext({});
@@ -8,23 +8,38 @@ export function AppProvider({ children }) {
   const [modulos, setModulos] = useState([]);
   const [empresaInfo, setEmpresaInfo] = useState(null);
   const [loadingApp, setLoadingApp] = useState(true);
+  
+  // 🌟 O TRUQUE MÁGICO: Guarda na memória se o sistema já fez o primeiro carregamento
+  const jaCarregou = useRef(false); 
 
   useEffect(() => {
     carregarTudo();
+    
     const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN') carregarTudo();
+      // Se for um "Login", mas já tivermos os dados, ele ignora e NÃO pisca a tela no Alt+Tab
+      if (event === 'SIGNED_IN') {
+        if (!jaCarregou.current) carregarTudo();
+      }
+      
+      // Quando sai do sistema, limpamos a memória e preparamos para o próximo utilizador
       if (event === 'SIGNED_OUT') {
         setPermissoes([]);
         setModulos([]);
         setEmpresaInfo(null);
-        document.title = 'Doo-Hub'; // Reseta o título ao sair
+        jaCarregou.current = false;
+        document.title = 'Doo-Hub';
       }
     });
+    
     return () => authListener.subscription.unsubscribe();
   }, []);
 
   async function carregarTudo() {
-    setLoadingApp(true);
+    // Só ativa a tela gigante de "Carregando..." se for a primeira vez que entra
+    if (!jaCarregou.current) {
+      setLoadingApp(true);
+    }
+    
     const { data: { session } } = await supabase.auth.getSession();
     
     if (session) {
@@ -37,7 +52,6 @@ export function AppProvider({ children }) {
       if (resPerms.data) setPermissoes(resPerms.data.map(p => p.chave));
       if (resMods.data) setModulos(resMods.data.map(m => m.chave));
 
-      // Busca dados da empresa para White-label
       if (resPerfil.data) {
         const { data: empresa } = await supabase
           .from('empresas')
@@ -47,11 +61,8 @@ export function AppProvider({ children }) {
         
         if (empresa) {
           setEmpresaInfo(empresa);
-          
-          // 🌟 MÁGICA 1: Troca o título da aba do navegador
           document.title = empresa.nome_fantasia || 'Doo-Hub';
           
-          // 🌟 MÁGICA 2: Injeta o Favicon da Empresa se ele existir
           if (empresa.favicon_url) {
             let link = document.querySelector("link[rel~='icon']");
             if (!link) {
@@ -64,6 +75,9 @@ export function AppProvider({ children }) {
         }
       }
     }
+    
+    // Marca que o carregamento pesado já foi feito
+    jaCarregou.current = true;
     setLoadingApp(false);
   }
 
