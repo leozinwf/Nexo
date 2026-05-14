@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../services/supabase';
-import { 
-  Clock, MessageSquare, LogOut, Home, 
-  History, Database, FileText, Settings, X, Users 
+import {
+  Clock, MessageSquare, LogOut, Home,
+  History, Database, FileText, Settings, X, Users, Building2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -18,15 +18,15 @@ export function Sidebar({ menuAberto, setMenuAberto }) {
       if (user) {
         const { data: perfil } = await supabase
           .from('perfis')
-          .select('is_admin')
+          .select('tipo_perfil')
           .eq('id', user.id)
           .maybeSingle();
-        if (perfil) setIsAdmin(perfil.is_admin);
+
+        if (perfil) setIsAdmin(perfil.tipo_perfil === 'admin_master' || perfil.tipo_perfil === 'rh');
       }
     };
     verificarAdmin();
   }, []);
-
   const handleLogout = async () => {
     await supabase.auth.signOut();
     toast.success('Sessão encerrada.');
@@ -62,45 +62,50 @@ export function Sidebar({ menuAberto, setMenuAberto }) {
           <X size={24} />
         </button>
       </div>
-      
+
       {/* NAV COM SCROLL INTERNO: Resolve o corte do botão Sair */}
-      <nav style={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        gap: '0.25rem', 
-        flex: 1, 
-        overflowY: 'auto', 
+      <nav style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.25rem',
+        flex: 1,
+        overflowY: 'auto',
         minHeight: 0,
-        paddingRight: '4px' 
+        paddingRight: '4px'
       }}>
         <button style={getEstiloItem('/dashboard')} onClick={() => navigate('/dashboard')}>
           <Home size={16} /> Início
         </button>
-        
+
         <div style={menuSection}>Gestão de Ponto</div>
         <button style={getEstiloItem('/ponto')} onClick={() => navigate('/ponto')}><Clock size={16} /> Registro de Ponto</button>
         <button style={getEstiloItem('/historico')} onClick={() => navigate('/historico')}><History size={16} /> Histórico de Pontos</button>
         <button style={getEstiloItem('/banco-horas')} onClick={() => navigate('/banco-horas')}><Database size={16} /> Banco de Horas</button>
         <button style={getEstiloItem('/relatorios')} onClick={() => navigate('/relatorios')}><FileText size={16} /> Relatórios e Folha</button>
-        
+
         <div style={menuSection}>Comunicação</div>
         <button style={getEstiloItem('/feedbacks')} onClick={() => navigate('/feedbacks')}><MessageSquare size={16} /> Feedbacks</button>
-        
+
         {isAdmin && (
           <>
             <div style={menuSection}>Gestão de Equipe</div>
             <button style={getEstiloItem('/gestao')} onClick={() => navigate('/gestao')}>
               <Users size={16} /> Área do Gestor
             </button>
-            
+
             <div style={menuSection}>Administração</div>
             <button style={getEstiloItem('/admin')} onClick={() => navigate('/admin')}>
               <Settings size={16} /> Painel de Controle
             </button>
+
+            <div style={menuSection}>Empresa</div>
+            <button style={getEstiloItem('/admin/empresa')} onClick={() => navigate('/admin/empresa')}>
+              <Building2 size={16} /> Dados da Empresa
+            </button>
           </>
         )}
       </nav>
-      
+
       <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.25rem', marginTop: '1rem', flexShrink: 0 }}>
         <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontWeight: '500', width: '100%' }}>
           <LogOut size={18} /> Sair do Sistema

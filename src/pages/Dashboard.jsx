@@ -14,19 +14,18 @@ let roboRodando = false;
 export function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
+  const [perfilUsuario, setPerfilUsuario] = useState(null);
   const [pontosHoje, setPontosHoje] = useState([]);
   const [loadingPonto, setLoadingPonto] = useState(false);
   const [horaAtual, setHoraAtual] = useState(new Date());
   const [isAdmin, setIsAdmin] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
 
-  // Atualiza o relógio a cada 1 segundo
   useEffect(() => {
     const timer = setInterval(() => setHoraAtual(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Busca todos os registros do dia de hoje (00:00 até 23:59)
   const buscarPontosHoje = async (userId, perfilUsuario) => {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -123,7 +122,10 @@ export function Dashboard() {
           .eq('id', user.id)
           .maybeSingle();
 
-        if (perfil) setIsAdmin(perfil.is_admin);
+        if (perfil) {
+          setPerfilUsuario(perfil);
+          setIsAdmin(perfil.tipo_perfil === 'admin_master' || perfil.tipo_perfil === 'rh'); 
+        }
         buscarPontosHoje(user.id, perfil);
       } else {
         navigate('/');
@@ -150,8 +152,14 @@ export function Dashboard() {
 
   const registrarPonto = async (tipoSelecionado) => {
     setLoadingPonto(true);
+    
     const { error } = await supabase.from('registros_ponto').insert([
-      { usuario_id: user.id, tipo: tipoSelecionado, dispositivo: 'web' }
+      { 
+        usuario_id: user.id, 
+        empresa_id: perfilUsuario.empresa_id,
+        tipo: tipoSelecionado, 
+        dispositivo: 'web' 
+      }
     ]);
     
     if (error) toast.error('Erro: ' + error.message);

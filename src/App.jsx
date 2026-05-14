@@ -5,6 +5,7 @@ import { Toaster } from 'react-hot-toast';
 import { Auth } from './pages/Auth';
 import { Dashboard } from './pages/Dashboard';
 import { Profile } from './pages/Profile';
+import { AceitarConvite } from './pages/AceitarConvite';
 
 // Módulo de Ponto
 import { History } from './pages/History';
@@ -18,6 +19,7 @@ import { Feedbacks } from './pages/Feedbacks';
 // Módulos Administrativos
 import { Admin } from './pages/Admin';
 import { Gestao } from './pages/Gestao';
+import { Empresa } from './pages/Empresa';
 
 function App() {
   return (
@@ -34,10 +36,12 @@ function App() {
         <Route path="/banco-horas" element={<BancoHoras />} />
         <Route path="/relatorios" element={<Relatorios />} />
         <Route path="/feedbacks" element={<Feedbacks />} />
+        <Route path="/convite/:id" element={<AceitarConvite />} />
         
         {/* Rotas de Chefia */}
         <Route path="/gestao" element={<Gestao />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/admin/empresa" element={<Empresa />} />
       </Routes>
     </Router>
   );
