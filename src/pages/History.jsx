@@ -4,6 +4,7 @@ import { supabase } from '../services/supabase';
 import { Calendar, Wrench, Edit2, X, Menu } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Sidebar } from '../components/Sidebar';
+import { Loading } from '../components/Loading';
 
 export function History() {
   const navigate = useNavigate();
@@ -14,7 +15,7 @@ export function History() {
   // Estados dos Filtros
   const hoje = new Date();
   const mesAtualFormatado = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
-  
+
   const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().split('T')[0];
   const ultimoDiaMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().split('T')[0];
 
@@ -26,8 +27,8 @@ export function History() {
   const [modalPontoManual, setModalPontoManual] = useState({ aberto: false, data: null });
 
   // Dispara a busca quando o componente é montado
-  useEffect(() => { 
-    buscarHistorico(); 
+  useEffect(() => {
+    buscarHistorico();
   }, []);
 
   // Quando escolhe um Mês, preenche automaticamente a Data Início e Fim
@@ -39,7 +40,7 @@ export function History() {
       // Mês no JS começa em 0, por isso passamos o mês exato para pegar o último dia (dia 0 do mês seguinte)
       const primeiroDia = new Date(ano, parseInt(mes) - 1, 1).toISOString().split('T')[0];
       const ultimoDia = new Date(ano, parseInt(mes), 0).toISOString().split('T')[0];
-      
+
       setDataInicio(primeiroDia);
       setDataFim(ultimoDia);
     }
@@ -58,38 +59,38 @@ export function History() {
       .lte('horario', `${dataFim}T23:59:59Z`)
       .order('horario', { ascending: true });
 
-    const inicio = new Date(`${dataInicio}T12:00:00`); 
-    const fim = new Date(`${dataFim}T12:00:00`); 
+    const inicio = new Date(`${dataInicio}T12:00:00`);
+    const fim = new Date(`${dataFim}T12:00:00`);
     const dias = [];
-    
+
     for (let d = new Date(inicio); d <= fim; d.setDate(d.getDate() + 1)) {
       const dataStr = d.toLocaleDateString('pt-BR');
       const pontos = registros?.filter(r => new Date(r.horario).toLocaleDateString('pt-BR') === dataStr) || [];
-      dias.push({ 
-        dataIso: d.toISOString().split('T')[0], 
-        dataExibicao: dataStr, 
-        diaSemana: d.toLocaleDateString('pt-BR', { weekday: 'long' }), 
-        pontos 
+      dias.push({
+        dataIso: d.toISOString().split('T')[0],
+        dataExibicao: dataStr,
+        diaSemana: d.toLocaleDateString('pt-BR', { weekday: 'long' }),
+        pontos
       });
     }
-    
+
     setDiasAgrupados(dias); // Mantém a ordem crescente original
     setLoading(false);
   };
 
   const getCorPonto = (tipo) => tipo === 'entrada' || tipo === 'retorno' ? '#10b981' : tipo === 'saida' ? '#ef4444' : '#f59e0b';
-  
-  const simularEnvio = (t) => { 
-    toast.success(`${t} enviado com sucesso! Aguardando aprovação.`); 
-    setModalOcorrencia({ aberto: false, data: null }); 
-    setModalPontoManual({ aberto: false, data: null }); 
+
+  const simularEnvio = (t) => {
+    toast.success(`${t} enviado com sucesso! Aguardando aprovação.`);
+    setModalOcorrencia({ aberto: false, data: null });
+    setModalPontoManual({ aberto: false, data: null });
   };
 
   return (
     <div className="layout">
       <div className={`overlay ${menuAberto ? 'open' : ''}`} onClick={() => setMenuAberto(false)}></div>
       <Sidebar menuAberto={menuAberto} setMenuAberto={setMenuAberto} />
-      
+
       <div className="main-container">
         <header className="top-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -97,37 +98,37 @@ export function History() {
             <div style={{ color: '#64748b', fontSize: '0.9rem' }}>Portal / <strong>Histórico</strong></div>
           </div>
         </header>
-        
+
         <main className="content">
           <div className="filter-bar" style={{ alignItems: 'flex-end' }}>
             {/* Atalho por Mês */}
             <div className="input-group">
               <label>Mês de Apuração</label>
-              <input 
-                type="month" 
-                className="form-control" 
-                value={mesSelecionado} 
-                onChange={handleMesChange} 
+              <input
+                type="month"
+                className="form-control"
+                value={mesSelecionado}
+                onChange={handleMesChange}
               />
             </div>
-            
+
             {/* Filtros Livres por Data */}
             <div className="input-group">
               <label>Data Início</label>
-              <input 
-                type="date" 
-                className="form-control" 
-                value={dataInicio} 
-                onChange={(e) => setDataInicio(e.target.value)} 
+              <input
+                type="date"
+                className="form-control"
+                value={dataInicio}
+                onChange={(e) => setDataInicio(e.target.value)}
               />
             </div>
             <div className="input-group">
               <label>Data Fim</label>
-              <input 
-                type="date" 
-                className="form-control" 
-                value={dataFim} 
-                onChange={(e) => setDataFim(e.target.value)} 
+              <input
+                type="date"
+                className="form-control"
+                value={dataFim}
+                onChange={(e) => setDataFim(e.target.value)}
               />
             </div>
 
@@ -138,7 +139,7 @@ export function History() {
 
           <div className="table-container">
             <div className="table-header"><div>Data</div><div>Previstas</div><div>Trabalhadas</div><div>Abonos</div><div>Intervalos</div><div>Saldo</div></div>
-            {loading ? <p style={{ padding: '2rem', textAlign: 'center' }}>Carregando...</p> : diasAgrupados.map((dia, idx) => (
+            {loading ? <p style={{ padding: '2rem', textAlign: 'center' }}>Carregando histórico de pontos...</p> : diasAgrupados.map((dia, idx) => (
               <div key={idx} className="table-row">
                 <div className="row-main">
                   <div data-label="Data" style={{ fontWeight: 'bold', color: '#0067ff' }}>{dia.dataExibicao}</div>
@@ -146,8 +147,8 @@ export function History() {
                 </div>
                 <div className="row-details">
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button className="form-control" title="Lançar Ocorrência" style={{ width: 'auto', cursor: 'pointer' }} onClick={() => setModalOcorrencia({ aberto: true, data: dia.dataIso })}><Wrench size={14}/></button>
-                    <button className="form-control" title="Ponto Manual" style={{ width: 'auto', cursor: 'pointer' }} onClick={() => setModalPontoManual({ aberto: true, data: dia.dataIso })}><Edit2 size={14}/></button>
+                    <button className="form-control" title="Lançar Ocorrência" style={{ width: 'auto', cursor: 'pointer' }} onClick={() => setModalOcorrencia({ aberto: true, data: dia.dataIso })}><Wrench size={14} /></button>
+                    <button className="form-control" title="Ponto Manual" style={{ width: 'auto', cursor: 'pointer' }} onClick={() => setModalPontoManual({ aberto: true, data: dia.dataIso })}><Edit2 size={14} /></button>
                   </div>
                   {dia.pontos.length > 0 && (
                     <div className="timeline-container">

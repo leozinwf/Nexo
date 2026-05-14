@@ -5,6 +5,7 @@ import {
   User, Briefcase, Globe, Link, Save, Lock, Menu
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { Loading } from '../components/Loading';
 
 export function Profile() {
   const [loading, setLoading] = useState(true);
@@ -81,7 +82,7 @@ export function Profile() {
     }
   }
 
-  if (loading && !perfil.nome_completo) return <div className="layout">Carregando...</div>;
+if (loading && !perfil.nome_completo) return <Loading mensagem="Carregando o seu perfil..." />;
 
   return (
     <div className="layout">

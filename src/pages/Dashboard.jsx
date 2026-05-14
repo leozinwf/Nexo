@@ -4,6 +4,8 @@ import { supabase } from '../services/supabase';
 import { ChevronRight, Star, Menu, CheckCircle2, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Sidebar } from '../components/Sidebar';
+import { useModule } from '../hooks/useModule';
+import { useAppContext } from '../contexts/AppContext';
 
 // =========================================================
 // TRAVA GLOBAL DO ROBÔ (Fora do componente React)
@@ -12,6 +14,7 @@ import { Sidebar } from '../components/Sidebar';
 let roboRodando = false;
 
 export function Dashboard() {
+  const { empresaInfo } = useAppContext();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [perfilUsuario, setPerfilUsuario] = useState(null);
@@ -20,11 +23,36 @@ export function Dashboard() {
   const [horaAtual, setHoraAtual] = useState(new Date());
   const [isAdmin, setIsAdmin] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
+  const { isAtivo: pontoAtivo } = useModule('ponto');
+  const { isAtivo: humorAtivo } = useModule('humor');
+  
+  // 🌟 NOVO: Estado para guardar a frase sorteada do dia
+  const [fraseDoDia, setFraseDoDia] = useState('Foco no cliente e resultados.');
 
+  // Efeito do Relógio
   useEffect(() => {
     const timer = setInterval(() => setHoraAtual(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // 🌟 NOVO: Efeito para sortear a frase apenas uma vez quando a página carrega
+  useEffect(() => {
+    if (empresaInfo?.proposito) {
+      try {
+        const parsed = JSON.parse(empresaInfo.proposito);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Sorteia uma frase aleatória do array
+          const fraseSorteada = parsed[Math.floor(Math.random() * parsed.length)];
+          setFraseDoDia(fraseSorteada);
+        } else {
+          setFraseDoDia(empresaInfo.proposito);
+        }
+      } catch (e) {
+        // Se falhar o parse (dados antigos), mostra como texto normal
+        setFraseDoDia(empresaInfo.proposito);
+      }
+    }
+  }, [empresaInfo]);
 
   const buscarPontosHoje = async (userId, perfilUsuario) => {
     const hoje = new Date();
@@ -43,13 +71,10 @@ export function Dashboard() {
     // ====================================================================
     // MOTOR DO PONTO PRÉ-ASSINALADO COM VALIDAÇÃO DE TURNO
     // ====================================================================
-    
-    // Pega a primeira batida de entrada do dia
     const primeiraEntrada = data?.find(p => p.tipo === 'entrada');
 
-    // O robô só executa se o colaborador já tiver entrado E tiver o almoço automático ativado
     if (data && primeiraEntrada && perfilUsuario?.almoco_automatico && !roboRodando) {
-      roboRodando = true; 
+      roboRodando = true;
       let precisaAtualizarTela = false;
 
       try {
@@ -66,10 +91,7 @@ export function Dashboard() {
 
           const horarioPrimeiraEntrada = new Date(primeiraEntrada.horario);
 
-          // REGRA DE OURO: O almoço só é lançado se o colaborador começou a trabalhar ANTES da hora do almoço.
           if (horarioPrimeiraEntrada <= dataPausa) {
-            
-            // 1. Regista a pausa se já passou da hora e não existe registo
             if (agora >= dataPausa && !data.some(p => p.tipo === 'pausa')) {
               await supabase.from('registros_ponto').insert([
                 { usuario_id: userId, tipo: 'pausa', dispositivo: 'sistema_automatico', horario: dataPausa.toISOString() }
@@ -77,7 +99,6 @@ export function Dashboard() {
               precisaAtualizarTela = true;
             }
 
-            // 2. Regista o retorno se já passou da hora e não existe registo
             if (agora >= dataRetorno && !data.some(p => p.tipo === 'retorno')) {
               await supabase.from('registros_ponto').insert([
                 { usuario_id: userId, tipo: 'retorno', dispositivo: 'sistema_automatico', horario: dataRetorno.toISOString() }
@@ -97,7 +118,7 @@ export function Dashboard() {
             .order('horario', { ascending: true });
 
           setPontosHoje(dadosAtualizados || []);
-          return; 
+          return;
         }
       } catch (error) {
         console.error("Erro no robô de ponto:", error);
@@ -124,7 +145,7 @@ export function Dashboard() {
 
         if (perfil) {
           setPerfilUsuario(perfil);
-          setIsAdmin(perfil.tipo_perfil === 'admin_master' || perfil.tipo_perfil === 'rh'); 
+          setIsAdmin(perfil.tipo_perfil === 'admin_master' || perfil.tipo_perfil === 'rh');
         }
         buscarPontosHoje(user.id, perfil);
       } else {
@@ -152,16 +173,16 @@ export function Dashboard() {
 
   const registrarPonto = async (tipoSelecionado) => {
     setLoadingPonto(true);
-    
+
     const { error } = await supabase.from('registros_ponto').insert([
-      { 
-        usuario_id: user.id, 
+      {
+        usuario_id: user.id,
         empresa_id: perfilUsuario.empresa_id,
-        tipo: tipoSelecionado, 
-        dispositivo: 'web' 
+        tipo: tipoSelecionado,
+        dispositivo: 'web'
       }
     ]);
-    
+
     if (error) toast.error('Erro: ' + error.message);
     else {
       toast.success('Ponto registrado!');
@@ -218,10 +239,10 @@ export function Dashboard() {
         <div className="main-container">
           <header className="top-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <button className="mobile-header-btn" onClick={() => setMenuAberto(true)} style={{background:'none', border:'none'}}><Menu size={24} /></button>
-              <div style={{ color: '#64748b', fontSize: '0.9rem' }}>Portal / <strong style={{ color: '#1e293b'}}>Início</strong></div>
+              <button className="mobile-header-btn" onClick={() => setMenuAberto(true)} style={{ background: 'none', border: 'none' }}><Menu size={24} /></button>
+              <div style={{ color: '#64748b', fontSize: '0.9rem' }}>Portal / <strong style={{ color: '#1e293b' }}>Início</strong></div>
             </div>
-            <div className="perfil-link" onClick={() => navigate('/perfil')} style={{display:'flex', alignItems:'center', gap:'1rem', cursor:'pointer'}}>
+            <div className="perfil-link" onClick={() => navigate('/perfil')} style={{ display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer' }}>
               <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Analista de Sistemas</span>
               <div style={{ width: '35px', height: '35px', backgroundColor: '#f0f7ff', color: '#0067ff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', border: '1px solid #e0efff' }}>
                 {userName[0].toUpperCase()}
@@ -230,64 +251,71 @@ export function Dashboard() {
           </header>
 
           <main className="content">
-            <div style={{ backgroundColor: '#fff', padding: '1.75rem', borderRadius: '20px', border: '1px solid #e2e8f0', borderLeft: '4px solid #0067ff', marginBottom: '1.5rem', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.02)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1.5rem', alignItems: 'flex-start' }}>
-                <div>
-                  <h3 style={{ margin: '0 0 0.5rem 0', color: '#1e293b', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Clock size={20} color="#0067ff" /> Registro de Ponto
-                  </h3>
-                  <div style={{ fontSize: '3.25rem', fontWeight: '800', color: '#1e293b', letterSpacing: '-2px' }}>
-                    {horaAtual.toLocaleTimeString('pt-BR')}
+            {pontoAtivo && (
+              <div style={{ backgroundColor: '#fff', padding: '1.75rem', borderRadius: '20px', border: '1px solid #e2e8f0', borderLeft: '4px solid #0067ff', marginBottom: '1.5rem', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.02)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1.5rem', alignItems: 'flex-start' }}>
+                  <div>
+                    <h3 style={{ margin: '0 0 0.5rem 0', color: '#1e293b', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Clock size={20} color="#0067ff" /> Registro de Ponto
+                    </h3>
+                    <div style={{ fontSize: '3.25rem', fontWeight: '800', color: '#1e293b', letterSpacing: '-2px' }}>
+                      {horaAtual.toLocaleTimeString('pt-BR')}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    {getOpcoesPonto().map(acao => (
+                      <button
+                        key={acao.tipo}
+                        onClick={() => registrarPonto(acao.tipo)}
+                        disabled={loadingPonto}
+                        className="btn-action"
+                        style={{
+                          backgroundColor: acao.outline ? 'transparent' : acao.color,
+                          color: acao.outline ? acao.color : '#fff',
+                          border: acao.outline ? `1px solid ${acao.color}` : 'none',
+                          padding: '1rem 1.5rem', borderRadius: '12px', fontWeight: '700'
+                        }}
+                      >
+                        {acao.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                  {getOpcoesPonto().map(acao => (
-                    <button 
-                      key={acao.tipo}
-                      onClick={() => registrarPonto(acao.tipo)} 
-                      disabled={loadingPonto}
-                      className="btn-action"
-                      style={{
-                        backgroundColor: acao.outline ? 'transparent' : acao.color, 
-                        color: acao.outline ? acao.color : '#fff', 
-                        border: acao.outline ? `1px solid ${acao.color}` : 'none',
-                        padding: '1rem 1.5rem', borderRadius: '12px', fontWeight: '700'
-                      }}
-                    >
-                      {acao.label}
-                    </button>
-                  ))}
-                </div>
+                {pontosHoje.length > 0 && (
+                  <div className="timeline">
+                    {pontosHoje.map((ponto, index) => (
+                      <div key={index} className="timeline-item" style={{ borderLeft: `4px solid ${getCorBorda(ponto.tipo)}` }}>
+                        <strong style={{ color: '#1e293b', fontSize: '1rem' }}>
+                          {new Date(ponto.horario).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </strong>
+                        <span style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: '500' }}>{formatarTipo(ponto.tipo)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              {pontosHoje.length > 0 && (
-                <div className="timeline">
-                  {pontosHoje.map((ponto, index) => (
-                    <div key={index} className="timeline-item" style={{ borderLeft: `4px solid ${getCorBorda(ponto.tipo)}` }}>
-                      <strong style={{ color: '#1e293b', fontSize: '1rem' }}>
-                        {new Date(ponto.horario).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                      </strong>
-                      <span style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: '500' }}>{formatarTipo(ponto.tipo)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            )}
 
-            <section style={{ backgroundColor: '#fff', padding: '2.5rem', borderRadius: '20px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h2 style={{ fontSize: '1.5rem', margin: '0 0 0.5rem 0', color: '#1e293b' }}>Olá, {userName}! 👋</h2>
-                <p style={{ margin: 0, color: '#64748b' }}>Como se sente hoje?</p>
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '1.25rem' }}>
-                  <button style={styles.moodBtn}>😊</button>
-                  <button style={styles.moodBtn}>😐</button>
-                  <button style={styles.moodBtn}>😔</button>
+            {humorAtivo && (
+              <section style={{ backgroundColor: '#fff', padding: '2.5rem', borderRadius: '20px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.5rem', margin: '0 0 0.5rem 0', color: '#1e293b' }}>Olá, {userName}! 👋</h2>
+                  <p style={{ margin: 0, color: '#64748b' }}>Como se sente hoje?</p>
+                  <div style={{ display: 'flex', gap: '1rem', marginTop: '1.25rem' }}>
+                    <button style={styles.moodBtn}>😊</button>
+                    <button style={styles.moodBtn}>😐</button>
+                    <button style={styles.moodBtn}>😔</button>
+                  </div>
                 </div>
-              </div>
-              <div style={{ backgroundColor: '#f8fafc', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', maxWidth: '220px', textAlign: 'center' }}>
-                <small style={{ color: '#ff9900', fontWeight: 'bold' }}>PROPÓSITO DOOTAX</small>
-                <p style={{ fontSize: '0.85rem', color: '#334155', margin: '0.5rem 0 0 0' }}>"Descomplicar as rotinas fiscais."</p>
-              </div>
-            </section>
+                <div style={{ backgroundColor: '#f8fafc', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', maxWidth: '220px', textAlign: 'center' }}>
+                  <small style={{ color: '#ff9900', fontWeight: 'bold' }}>NOSSO PROPÓSITO</small>
+                  {/* 🌟 AQUI EXIBIMOS A FRASE SORTEADA */}
+                  <p style={{ fontSize: '0.85rem', color: '#334155', margin: '0.5rem 0 0 0', fontStyle: 'italic' }}>
+                    "{fraseDoDia}"
+                  </p>
+                </div>
+              </section>
+            )}
           </main>
         </div>
       </div>
@@ -298,5 +326,5 @@ export function Dashboard() {
 const styles = {
   navItem: { display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', backgroundColor: 'transparent', border: 'none', color: '#64748b', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontSize: '0.9rem', fontWeight: '500' },
   menuSection: { fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginTop: '1.5rem', marginBottom: '0.5rem', paddingLeft: '0.75rem' },
-  moodBtn: { fontSize: '1.5rem', padding: '0.6rem', border: '1px solid #e2e8f0', borderRadius: '14px', backgroundColor: '#fff', cursor: 'pointer' }
+  moodBtn: { fontSize: '1.5rem', padding: '0.6rem', border: '1px solid #e2e8f0', borderRadius: '14px', backgroundColor: '#fff', cursor: 'pointer', transition: 'transform 0.2s ease' }
 };

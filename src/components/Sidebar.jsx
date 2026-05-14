@@ -3,16 +3,20 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import {
   Clock, MessageSquare, LogOut, Home,
-  History, Database, FileText, Settings, X, Users, Building2, ShieldCheck
+  History, Database, FileText, Settings, X, Users, Building2, ShieldCheck, Smile, LayoutGrid
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { usePermission } from '../hooks/usePermissions';
+import { useModule } from '../hooks/useModule';
+import { useAppContext } from '../contexts/AppContext';
 
 export function Sidebar({ menuAberto, setMenuAberto }) {
+  const { empresaInfo } = useAppContext();
   const navigate = useNavigate();
   const location = useLocation();
-  const { temAcesso } = usePermission('usuarios.gerenciar');
   const { temAcesso: podeAcessarAdmin } = usePermission('admin.configuracoes');
+  const { isAtivo: humorAtivo } = useModule('humor');
+  const { isAtivo: feedbackAtivo } = useModule('feedbacks');
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -44,7 +48,12 @@ export function Sidebar({ menuAberto, setMenuAberto }) {
   return (
     <aside className={`sidebar ${menuAberto ? 'open' : ''}`}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem', flexShrink: 0 }}>
-        <img src="https://dootax.com.br/wp-content/themes/dootax/assets/imgs/logo_dootax_principal.svg" alt="Logo" style={{ width: '130px' }} />
+        {/* Se a empresa tiver logo, usa ele. Se não, usa um texto ou logo padrão */}
+        {empresaInfo?.logo_url ? (
+          <img src={empresaInfo.logo_url} alt="Logo" style={{ width: 'auto', maxHeight: '45px', maxWidth: '150px' }} />
+        ) : (
+          <h2 style={{ color: '#0067ff', margin: 0 }}>{empresaInfo?.nome_fantasia || 'Doo-Hub'}</h2>
+        )}
         <button className="mobile-header-btn" onClick={() => setMenuAberto(false)} style={{ background: 'none', border: 'none' }}>
           <X size={24} />
         </button>
@@ -70,8 +79,17 @@ export function Sidebar({ menuAberto, setMenuAberto }) {
         <button style={getEstiloItem('/banco-horas')} onClick={() => navigate('/banco-horas')}><Database size={16} /> Banco de Horas</button>
         <button style={getEstiloItem('/relatorios')} onClick={() => navigate('/relatorios')}><FileText size={16} /> Relatórios e Folha</button>
 
-        <div style={menuSection}>Comunicação</div>
-        <button style={getEstiloItem('/feedbacks')} onClick={() => navigate('/feedbacks')}><MessageSquare size={16} /> Feedbacks</button>
+        
+
+        {feedbackAtivo && (
+          <>
+            <div style={menuSection}>Comunicação</div>
+            
+            <button style={getEstiloItem('/feedbacks')} onClick={() => navigate('/feedbacks')}>
+              <MessageSquare size={16} /> Feedbacks
+            </button>
+          </>
+        )}
 
         {podeAcessarAdmin && (
           <>
@@ -80,18 +98,21 @@ export function Sidebar({ menuAberto, setMenuAberto }) {
               <Users size={16} /> Área do Gestor
             </button>
 
-            <div style={menuSection}>Administração</div>
-            <button style={getEstiloItem('/admin')} onClick={() => navigate('/admin')}>
-              <Settings size={16} /> Painel de Controle
+            <div style={menuSection}>Empresa</div>
+            <button style={getEstiloItem('/admin/colaboradores')} onClick={() => navigate('/admin/colaboradores')}>
+              <Settings size={16} /> Colaboradores
             </button>
 
-            <div style={menuSection}>Empresa</div>
             <button style={getEstiloItem('/admin/empresa')} onClick={() => navigate('/admin/empresa')}>
               <Building2 size={16} /> Dados da Empresa
             </button>
 
             <button style={getEstiloItem('/admin/permissoes')} onClick={() => navigate('/admin/permissoes')}>
               <ShieldCheck size={16} /> Permissões e Cargos
+            </button>
+
+            <button style={getEstiloItem('/admin/modulos')} onClick={() => navigate('/admin/modulos')}>
+              <LayoutGrid size={16} /> Módulos do Sistema
             </button>
           </>
         )}
