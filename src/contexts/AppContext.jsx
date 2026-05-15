@@ -63,6 +63,10 @@ export function AppProvider({ children }) {
           setEmpresaInfo(empresa);
           document.title = empresa.nome_fantasia || 'Doo-Hub';
           
+          if (empresa.cor_tema) {
+            document.documentElement.style.setProperty('--brand-color', empresa.cor_tema);
+          }
+          
           if (empresa.favicon_url) {
             let link = document.querySelector("link[rel~='icon']");
             if (!link) {

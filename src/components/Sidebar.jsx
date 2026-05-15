@@ -15,8 +15,13 @@ export function Sidebar({ menuAberto, setMenuAberto }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { temAcesso: podeAcessarAdmin } = usePermission('admin.configuracoes');
+  
+  // 🌟 O Segredo de UX: Apenas renderizamos se o módulo estiver ativo
   const { isAtivo: humorAtivo } = useModule('humor');
   const { isAtivo: feedbackAtivo } = useModule('feedbacks');
+  
+  // 🌟 NOVO: Adicionado verificação para exibir o botão de Mural
+  const { isAtivo: muralAtivo } = useModule('mural');
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -30,96 +35,114 @@ export function Sidebar({ menuAberto, setMenuAberto }) {
     display: 'flex',
     alignItems: 'center',
     gap: '0.75rem',
-    padding: isSubItem ? '0.75rem 1rem 0.75rem 2.5rem' : '0.75rem 1rem',
-    backgroundColor: isAtivo(caminho) ? '#f0f7ff' : 'transparent',
+    padding: isSubItem ? '0.6rem 1rem 0.6rem 2.5rem' : '0.75rem 1rem',
+    backgroundColor: isAtivo(caminho) ? 'var(--brand-color)' : 'transparent',
+    color: isAtivo(caminho) ? '#ffffff' : '#64748b',
     border: 'none',
-    color: isAtivo(caminho) ? '#0067ff' : '#64748b',
-    borderRadius: '8px',
+    borderRadius: '12px',
     cursor: 'pointer',
     textAlign: 'left',
-    fontSize: isSubItem ? '0.85rem' : '0.9rem',
-    fontWeight: isAtivo(caminho) ? '600' : '500',
-    transition: '0.2s',
-    textDecoration: 'none'
+    fontSize: '0.9rem',
+    fontWeight: isAtivo(caminho) ? '700' : '500',
+    transition: 'all 0.2s',
+    marginBottom: '0.2rem'
   });
 
-  const menuSection = { fontSize: '0.7rem', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginTop: '1.5rem', marginBottom: '0.5rem', paddingLeft: '0.75rem', letterSpacing: '0.05em' };
+  const menuSection = {
+    fontSize: '0.7rem',
+    fontWeight: '800',
+    color: '#94a3b8',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    marginTop: '1.5rem',
+    marginBottom: '0.5rem',
+    paddingLeft: '1rem'
+  };
 
   return (
     <aside className={`sidebar ${menuAberto ? 'open' : ''}`}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem', flexShrink: 0 }}>
-        {/* Se a empresa tiver logo, usa ele. Se não, usa um texto ou logo padrão */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', padding: '0 0.5rem' }}>
         {empresaInfo?.logo_url ? (
-          <img src={empresaInfo.logo_url} alt="Logo" style={{ width: 'auto', maxHeight: '45px', maxWidth: '150px' }} />
+          <img src={empresaInfo.logo_url} alt="Logo" style={{ height: '35px', objectFit: 'contain' }} />
         ) : (
-          <h2 style={{ color: '#0067ff', margin: 0 }}>{empresaInfo?.nome_fantasia || 'Doo-Hub'}</h2>
+          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800', color: '#1e293b' }}>
+            {empresaInfo?.nome_fantasia || 'Doo-Hub'}
+          </h2>
         )}
-        <button className="mobile-header-btn" onClick={() => setMenuAberto(false)} style={{ background: 'none', border: 'none' }}>
-          <X size={24} />
+        <button className="lg:hidden text-slate-400 hover:text-slate-600" onClick={() => setMenuAberto(false)} style={{ background: 'none', border: 'none' }}>
+          <X size={20} />
         </button>
       </div>
 
-      {/* NAV COM SCROLL INTERNO: Resolve o corte do botão Sair */}
-      <nav style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.25rem',
-        flex: 1,
-        overflowY: 'auto',
-        minHeight: 0,
-        paddingRight: '4px'
-      }}>
+      <nav style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto' }} className="custom-scrollbar pr-2">
+        
+        <div style={menuSection}>Geral</div>
         <button style={getEstiloItem('/dashboard')} onClick={() => navigate('/dashboard')}>
-          <Home size={16} /> Início
+          <Home size={18} /> Início
         </button>
 
-        <div style={menuSection}>Gestão de Ponto</div>
-        <button style={getEstiloItem('/ponto')} onClick={() => navigate('/ponto')}><Clock size={16} /> Registro de Ponto</button>
-        <button style={getEstiloItem('/historico')} onClick={() => navigate('/historico')}><History size={16} /> Histórico de Pontos</button>
-        <button style={getEstiloItem('/banco-horas')} onClick={() => navigate('/banco-horas')}><Database size={16} /> Banco de Horas</button>
-        <button style={getEstiloItem('/relatorios')} onClick={() => navigate('/relatorios')}><FileText size={16} /> Relatórios e Folha</button>
-
+        <div style={menuSection}>Meu Espaço</div>
+        <button style={getEstiloItem('/ponto')} onClick={() => navigate('/ponto')}>
+          <Clock size={18} /> Relógio de Ponto
+        </button>
+        <button style={getEstiloItem('/historico')} onClick={() => navigate('/historico')}>
+          <History size={18} /> Meu Histórico
+        </button>
+        <button style={getEstiloItem('/banco-horas')} onClick={() => navigate('/banco-horas')}>
+          <Database size={18} /> Banco de Horas
+        </button>
         
-
+        {/* Renderização Condicional baseada nos módulos ativos da empresa */}
+        {(feedbackAtivo || muralAtivo) && (
+          <div style={menuSection}>Comunicação</div>
+        )}
+        
         {feedbackAtivo && (
-          <>
-            <div style={menuSection}>Comunicação</div>
-            
-            <button style={getEstiloItem('/feedbacks')} onClick={() => navigate('/feedbacks')}>
-              <MessageSquare size={16} /> Feedbacks
-            </button>
-          </>
+          <button style={getEstiloItem('/feedbacks')} onClick={() => navigate('/feedbacks')}>
+            <MessageSquare size={18} /> Feedbacks
+          </button>
         )}
 
+        {/* 🌟 Botão do Mural: Apenas aparece se estiver ativo */}
+        {muralAtivo && (
+          <button style={getEstiloItem('/mural')} onClick={() => navigate('/mural')}>
+            <MessageSquare size={18} /> Mural da Equipa
+          </button>
+        )}
+
+        {/* ÁREA ADMINISTRATIVA */}
         {podeAcessarAdmin && (
           <>
-            <div style={menuSection}>Gestão de Equipe</div>
+            <div style={menuSection}>Gestão de Equipa</div>
             <button style={getEstiloItem('/gestao')} onClick={() => navigate('/gestao')}>
-              <Users size={16} /> Área do Gestor
+              <Users size={18} /> Área do Gestor
+            </button>
+            <button style={getEstiloItem('/relatorios')} onClick={() => navigate('/relatorios')}>
+              <FileText size={18} /> Relatórios
             </button>
 
-            <div style={menuSection}>Empresa</div>
+            <div style={menuSection}>Configurações</div>
             <button style={getEstiloItem('/admin/colaboradores')} onClick={() => navigate('/admin/colaboradores')}>
-              <Settings size={16} /> Colaboradores
+              <Settings size={18} /> Colaboradores
             </button>
 
             <button style={getEstiloItem('/admin/empresa')} onClick={() => navigate('/admin/empresa')}>
-              <Building2 size={16} /> Dados da Empresa
+              <Building2 size={18} /> Dados da Empresa
             </button>
 
             <button style={getEstiloItem('/admin/permissoes')} onClick={() => navigate('/admin/permissoes')}>
-              <ShieldCheck size={16} /> Permissões e Cargos
+              <ShieldCheck size={18} /> Permissões
             </button>
 
             <button style={getEstiloItem('/admin/modulos')} onClick={() => navigate('/admin/modulos')}>
-              <LayoutGrid size={16} /> Módulos do Sistema
+              <LayoutGrid size={18} /> Módulos
             </button>
           </>
         )}
       </nav>
 
       <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.25rem', marginTop: '1rem', flexShrink: 0 }}>
-        <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontWeight: '500', width: '100%' }}>
+        <button onClick={handleLogout} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: 'none', border: 'none', color: '#ef4444', fontWeight: '600', cursor: 'pointer', padding: '0.5rem', width: '100%', borderRadius: '8px', transition: 'background-color 0.2s' }} className="hover:bg-red-50">
           <LogOut size={18} /> Sair do Sistema
         </button>
       </div>

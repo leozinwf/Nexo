@@ -15,6 +15,7 @@ export function Empresa() {
   // Array para controlar os propósitos dinâmicos
   const [propositos, setPropositos] = useState([""]); 
 
+  // 🌟 CORREÇÃO 1: Adicionado cor_tema no estado inicial
   const [dadosEmpresa, setDadosEmpresa] = useState({
     nome_fantasia: '',
     razao_social: '',
@@ -23,7 +24,8 @@ export function Empresa() {
     telefone: '',
     endereco: '',
     logo_url: '',
-    favicon_url: ''
+    favicon_url: '',
+    cor_tema: '#2563eb' 
   });
 
   useEffect(() => {
@@ -113,6 +115,7 @@ export function Empresa() {
     const propositosLimpos = propositos.filter(p => p.trim() !== "");
     const propositoFinalString = JSON.stringify(propositosLimpos);
 
+    // 🌟 CORREÇÃO 2: Adicionado cor_tema no update do supabase
     const { error } = await supabase
       .from('empresas')
       .update({
@@ -124,7 +127,8 @@ export function Empresa() {
         endereco: dadosEmpresa.endereco,
         logo_url: dadosEmpresa.logo_url,
         favicon_url: dadosEmpresa.favicon_url,
-        proposito: propositoFinalString
+        proposito: propositoFinalString,
+        cor_tema: dadosEmpresa.cor_tema 
       })
       .eq('id', perfilUsuario.empresa_id);
       
@@ -193,6 +197,22 @@ export function Empresa() {
                     <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleUpload(e, 'favicon_url')} />
                   </label>
                   {dadosEmpresa.favicon_url && <img src={dadosEmpresa.favicon_url} alt="Favicon" style={{ height: '32px', width: '32px', borderRadius: '4px', objectFit: 'cover' }} />}
+                </div>
+              </div>
+
+              {/* 🌟 CORREÇÃO 3: Campo de Cor com a variável correta */}
+              <div className="input-group" style={{ gridColumn: 'span 2' }}>
+                <label>Cor Principal da Plataforma</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <input 
+                    type="color" 
+                    value={dadosEmpresa.cor_tema || '#2563eb'} 
+                    onChange={e => setDadosEmpresa({...dadosEmpresa, cor_tema: e.target.value})}
+                    style={{ width: '50px', height: '50px', padding: 0, border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: '0.9rem', color: '#64748b' }}>
+                    Escolha a cor primária que combina com a sua marca. Esta cor será aplicada na Dashboard e noutros elementos.
+                  </span>
                 </div>
               </div>
 

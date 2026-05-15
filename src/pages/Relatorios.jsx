@@ -1,12 +1,14 @@
-import { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { Sidebar } from '../components/Sidebar';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, FileText, Printer, Camera, MessageSquare, Eye, X, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export function Relatorios() {
   const navigate = useNavigate();
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [menuAberto, setMenuAberto] = useState(false);
   const [diasCalculados, setDiasCalculados] = useState([]);
@@ -18,7 +20,6 @@ export function Relatorios() {
 
   // Modais e Câmera
   const [modalAssinatura, setModalAssinatura] = useState(false);
-  const [modalChat, setModalChat] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [stream, setStream] = useState(null);
@@ -36,14 +37,15 @@ export function Relatorios() {
     setLoading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) {
         navigate('/');
         return;
       }
+      setUser(authUser);
 
       // 1. Dados Fixos
-      const resPerfil = await supabase.from('perfis').select('*').eq('id', user.id).single();
+      const resPerfil = await supabase.from('perfis').select('*').eq('id', authUser.id).single();
       setUserPerfil(resPerfil.data);
 
       const resEmpresa = await supabase.from('config_empresa').select('*').eq('id', 1).single();
@@ -52,7 +54,7 @@ export function Relatorios() {
       const resAss = await supabase
         .from('assinaturas_folha')
         .select('*')
-        .eq('usuario_id', user.id)
+        .eq('usuario_id', authUser.id)
         .eq('mes_referencia', mesSelecionado)
         .maybeSingle();
       setAssinaturaData(resAss.data || null);
@@ -66,7 +68,7 @@ export function Relatorios() {
       const { data: registros } = await supabase
         .from('registros_ponto')
         .select('*')
-        .eq('usuario_id', user.id)
+        .eq('usuario_id', authUser.id)
         .gte('horario', dataInicio)
         .lte('horario', dataFim)
         .order('horario', { ascending: true });
@@ -146,7 +148,7 @@ export function Relatorios() {
       setStream(s);
       if (videoRef.current) videoRef.current.srcObject = s;
     } catch (e) {
-      toast.error('Câmera indisponível.');
+      toast.error('Câmara indisponível.');
       fecharCamera();
     }
   };
@@ -162,7 +164,7 @@ export function Relatorios() {
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      toast.error('Usuário não autenticado.');
+      toast.error('Utilizador não autenticado.');
       return;
     }
 
@@ -173,7 +175,7 @@ export function Relatorios() {
       data_assinatura: new Date().toISOString()
     });
 
-    if (error) return toast.error('Erro ao salvar assinatura.');
+    if (error) return toast.error('Erro ao guardar assinatura.');
     toast.success('Documento assinado!');
     fecharCamera();
     carregarRelatorio();
@@ -185,6 +187,8 @@ export function Relatorios() {
     setModalAssinatura(false);
   };
 
+  const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Colaborador';
+
   return (
     <>
       <style>{`
@@ -192,76 +196,79 @@ export function Relatorios() {
 
         @media print {
           @page { size: A4 portrait; margin: 8mm; }
-
-          body {
-            font-size: 9px !important;
-            line-height: 1.1 !important;
-          }
-
-          .doohub-card {
-            padding: 0 !important;
-          }
-
-          .print-section {
-            border: 1px solid #000;
-            padding: 4px;
-            margin-bottom: 4px;
-          }
-
-          .print-table {
-            font-size: 9px !important;
-            border-collapse: collapse !important;
-          }
-
-          .print-table th,
-          .print-table td {
-            border: 1px solid #000 !important;
-            padding: 2px 3px !important;
-          }
-
-          .print-table th {
-            background: #eee !important;
-            font-weight: bold;
-          }
-
-          /* remove modo mobile */
-          .responsive-table,
-          .responsive-table * {
-            display: revert !important;
-          }
-
-          .print-signatures {
-            margin-top: 15px;
-            display: flex;
-            justify-content: space-between;
-          }
-
-          img {
-            max-height: 60px !important;
-          }
+          .no-print { display: none !important; }
+          body { font-size: 9px !important; line-height: 1.1 !important; background: #fff !important; }
+          .doohub-card { padding: 0 !important; border: none !important; box-shadow: none !important; }
+          .print-section { border: 1px solid #000; padding: 4px; margin-bottom: 4px; }
+          .print-table { font-size: 9px !important; border-collapse: collapse !important; width: 100%; }
+          .print-table th, .print-table td { border: 1px solid #000 !important; padding: 2px 3px !important; }
+          .print-table th { background: #eee !important; font-weight: bold; }
+          .responsive-table, .responsive-table * { display: revert !important; }
+          .print-signatures { margin-top: 15px; display: flex; justify-content: space-between; }
+          img { max-height: 60px !important; }
         }
       `}</style>
 
-      <div className="layout">
-        <div className={`overlay ${menuAberto ? 'open' : ''}`} onClick={() => setMenuAberto(false)}></div>
+      <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans text-slate-800">
+        <div className={`fixed inset-0 bg-slate-900/40 z-40 backdrop-blur-sm transition-opacity lg:hidden no-print ${menuAberto ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setMenuAberto(false)}></div>
+        
         <Sidebar menuAberto={menuAberto} setMenuAberto={setMenuAberto} />
-        <div className="main-container">
-          <header className="top-header no-print">
-            <button className="mobile-header-btn" onClick={() => setMenuAberto(true)}><Menu size={24} /></button>
-            <div style={{ color: '#64748b' }}>Portal / <strong>Relatórios e Folha</strong></div>
-          </header>
-
-          <main className="content">
-            <div className="filter-bar no-print" style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <div className="input-group"><label>Mês</label><input type="month" className="form-control" value={mesSelecionado} onChange={e => setMesSelecionado(e.target.value)} /></div>
-              <button className="action-btn" onClick={() => window.print()}><Eye size={18} /> Visualizar</button>
-              <button className="action-btn" onClick={assinaturaData ? null : iniciarCamera} disabled={!!assinaturaData} style={{ color: assinaturaData ? '#10b981' : 'inherit' }}>
-                {assinaturaData ? <CheckCircle size={18} /> : <Camera size={18} />} {assinaturaData ? 'Assinado' : 'Assinar'}
+        
+        <div className="flex-1 flex flex-col h-screen overflow-y-auto relative print:overflow-visible">
+          <header className="sticky top-0 z-30 flex justify-between items-center px-6 py-4 bg-white/70 backdrop-blur-xl border-b border-slate-200/60 no-print">
+            <div className="flex items-center gap-4">
+              <button className="lg:hidden text-slate-500 hover:text-brand transition" onClick={() => setMenuAberto(true)}>
+                <Menu size={24} />
               </button>
-              <button className="action-btn" onClick={() => setModalChat(true)}><MessageSquare size={18} /> Contestar</button>
+              <div className="text-sm font-medium text-slate-500 hidden sm:block">
+                Portal <span className="text-slate-300 mx-2">/</span> <strong className="text-slate-800 uppercase tracking-wider text-[11px]">Relatórios e Folha</strong>
+              </div>
             </div>
 
-            <div className="doohub-card" style={{ padding: '2rem' }}>
+            {/* PERFIL NO CABEÇALHO */}
+            <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate('/perfil')}>
+              <div className="text-right hidden sm:block">
+                <div className="text-sm font-bold text-slate-800 group-hover:text-brand transition-colors">{userName}</div>
+                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Ver Perfil</div>
+              </div>
+              <div className="w-9 h-9 rounded-full bg-brand text-white flex items-center justify-center font-bold text-sm shadow-sm">
+                {userName?.charAt(0)?.toUpperCase() || 'C'}
+              </div>
+            </div>
+          </header>
+
+          <main className="p-6 lg:p-8 max-w-[1200px] mx-auto w-full flex flex-col gap-6 pb-20 print:p-0 print:m-0">
+            
+            <div className="bg-white rounded-[24px] p-6 shadow-sm border border-slate-200/60 flex flex-wrap gap-4 items-end no-print">
+              <div className="flex flex-col gap-2 flex-1 min-w-[200px]">
+                <label className="text-xs font-bold text-slate-500 uppercase">Mês de Apuração</label>
+                <input 
+                  type="month" 
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand outline-none text-slate-700 w-full" 
+                  value={mesSelecionado} 
+                  onChange={e => setMesSelecionado(e.target.value)} 
+                />
+              </div>
+              
+              <div className="flex gap-2 flex-wrap">
+                <button className="bg-white border border-slate-200 text-slate-600 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 h-[42px]" onClick={() => window.print()}>
+                  <Eye size={18} /> Visualizar
+                </button>
+                <button 
+                  className={`font-bold text-sm px-4 py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2 h-[42px] ${assinaturaData ? 'bg-emerald-100 text-emerald-600 cursor-default' : 'bg-brand text-white hover:bg-brand/90'}`} 
+                  onClick={assinaturaData ? null : iniciarCamera} 
+                  disabled={!!assinaturaData}
+                >
+                  {assinaturaData ? <CheckCircle size={18} /> : <Camera size={18} />} {assinaturaData ? 'Assinado' : 'Assinar Folha'}
+                </button>
+                <button className="bg-white border border-slate-200 text-slate-600 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 h-[42px]" onClick={() => toast.success("Contestação enviada ao RH!")}>
+                  <MessageSquare size={18} /> Contestar
+                </button>
+              </div>
+            </div>
+
+            {/* DOCUMENTO PARA IMPRESSÃO (Folha de Ponto) */}
+            <div className="bg-white rounded-[24px] shadow-sm border border-slate-200/60 overflow-hidden doohub-card" style={{ padding: '2rem' }}>
               <div className="print-header">
                 <div style={{ textAlign: 'center', marginBottom: '6px' }}>
                   <h2 style={{ margin: 0, fontSize: '13px' }}>FOLHA DE PONTO</h2>
@@ -288,26 +295,53 @@ export function Relatorios() {
                 </div>
               </div>
 
-              {loading ? <p>Processando registros...</p> : (
+              {loading ? (
+                <div className="text-center py-12">
+                  <div className="w-8 h-8 border-4 border-brand border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                  <p className="text-slate-500 font-medium text-sm">Processando registos...</p>
+                </div>
+              ) : (
                 <>
-                  <table className="doohub-table responsive-table print-table">
-                    <thead><tr><th>Dia</th><th>Marcações</th><th>Trabalhadas</th><th>Saldo</th></tr></thead>
-                    <tbody>
-                      {diasCalculados.map((d, i) => (
-                        <tr key={i}><td data-label="Dia">{d.data} ({d.semana})</td><td data-label="Marcações" style={{ fontFamily: 'monospace' }}>{d.marcacoes || '-'}</td><td data-label="Horas">{d.trabalhadas}</td><td data-label="Saldo">{d.saldo}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse print-table">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100">
+                          <th className="p-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Dia</th>
+                          <th className="p-3 text-xs font-bold text-slate-500 uppercase tracking-widest">Marcações</th>
+                          <th className="p-3 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">Trabalhadas</th>
+                          <th className="p-3 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">Saldo</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {diasCalculados.map((d, i) => (
+                          <tr key={i} className="hover:bg-slate-50/50">
+                            <td className="p-3 font-bold text-sm text-slate-700" data-label="Dia">{d.data} <span className="text-[10px] text-slate-400 font-normal ml-1">({d.semana})</span></td>
+                            <td className="p-3 text-sm font-medium text-slate-600" data-label="Marcações" style={{ fontFamily: 'monospace' }}>{d.marcacoes || '-'}</td>
+                            <td className="p-3 text-center text-sm font-bold text-slate-700" data-label="Horas">{d.trabalhadas}</td>
+                            <td className="p-3 text-right text-sm font-bold" data-label="Saldo" style={{ color: d.saldo.includes('-') ? '#ef4444' : (d.saldo !== '-' ? '#10b981' : 'inherit') }}>{d.saldo}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
-                  <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', padding: '15px', background: '#f8fafc', borderRadius: '8px' }}>
-                    <div><strong>Total Trabalhado:</strong> {formatarMinutos(resumo.horasTrabalhadas).replace('+', '')}</div>
-                    <div><strong>Saldo Mensal:</strong> <span style={{ color: resumo.saldoMensal >= 0 ? '#10b981' : '#ef4444' }}>{formatarMinutos(resumo.saldoMensal)}</span></div>
+                  <div className="mt-8 flex justify-between p-5 bg-slate-50 border border-slate-100 rounded-xl">
+                    <div className="text-sm">
+                      <span className="text-slate-500 font-bold uppercase tracking-wider block text-[10px] mb-1">Total Trabalhado</span>
+                      <strong className="text-xl text-slate-800">{formatarMinutos(resumo.horasTrabalhadas).replace('+', '')}</strong>
+                    </div>
+                    <div className="text-sm text-right">
+                      <span className="text-slate-500 font-bold uppercase tracking-wider block text-[10px] mb-1">Saldo Mensal</span>
+                      <strong className="text-xl" style={{ color: resumo.saldoMensal >= 0 ? '#10b981' : '#ef4444' }}>
+                        {formatarMinutos(resumo.saldoMensal)}
+                      </strong>
+                    </div>
                   </div>
 
                   <div className="print-signatures">
                     <div style={{ width: '45%', textAlign: 'center' }}>
                       {assinaturaData && (
-                        <img src={assinaturaData.foto_assinatura} />
+                        <img src={assinaturaData.foto_assinatura} alt="Assinatura Biométrica" style={{ margin: '0 auto' }} />
                       )}
                       <div style={{ borderTop: '1px solid #000' }}>
                         Trabalhador
@@ -327,19 +361,29 @@ export function Relatorios() {
           </main>
         </div>
 
-        {modalAssinatura && (
-          <div className="modal-overlay">
-            <div className="modal-box" style={{ textAlign: 'center' }}>
-              <div className="modal-header-box"><h3>Assinatura Biométrica</h3><button onClick={fecharCamera}><X /></button></div>
-              <div className="modal-body">
-                <video ref={videoRef} autoPlay playsInline style={{ width: '100%', borderRadius: '12px', background: '#000', transform: 'scaleX(-1)' }} />
-                <canvas ref={canvasRef} style={{ display: 'none' }} />
-                <p style={{ fontSize: '13px', marginTop: '15px', color: '#64748b' }}>Centralize seu rosto para assinar a folha de ponto.</p>
-              </div>
-              <div className="modal-footer"><button className="form-control" onClick={capturarEAssinar} style={{ background: '#0067ff', color: '#fff', fontWeight: 'bold' }}>Tirar Foto e Assinar</button></div>
+        {/* MODAL CÂMARA (NOVO ESTILO TAILWIND) */}
+        <AnimatePresence>
+          {modalAssinatura && (
+            <div className="fixed inset-0 bg-slate-900/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm no-print">
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden text-center">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                  <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Camera className="text-brand" size={20}/> Assinatura Biométrica</h3>
+                  <button onClick={fecharCamera} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-200 transition-colors"><X size={20} /></button>
+                </div>
+                <div className="p-6">
+                  <video ref={videoRef} autoPlay playsInline className="w-full rounded-2xl bg-black shadow-inner" style={{ transform: 'scaleX(-1)' }} />
+                  <canvas ref={canvasRef} className="hidden" />
+                  <p className="text-xs mt-4 text-slate-500 font-medium">Centralize o seu rosto para assinar a folha de ponto.</p>
+                </div>
+                <div className="p-6 border-t border-slate-100 bg-slate-50/50">
+                  <button onClick={capturarEAssinar} className="w-full px-4 py-3 rounded-xl font-bold text-sm bg-brand text-white hover:opacity-90 transition-opacity shadow-sm">
+                    Tirar Foto e Assinar
+                  </button>
+                </div>
+              </motion.div>
             </div>
-          </div>
-        )}
+          )}
+        </AnimatePresence>
       </div>
     </>
   );
