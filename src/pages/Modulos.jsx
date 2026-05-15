@@ -9,6 +9,7 @@ import { Loading } from '../components/Loading';
 
 export function Modulos() {
   const navigate = useNavigate();
+  const [user, setUser] = useState(null);
   const [modulos, setModulos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [menuAberto, setMenuAberto] = useState(false);
@@ -28,10 +29,11 @@ export function Modulos() {
   }, []);
 
   async function carregarDados() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) return;
+    setUser(authUser);
 
-    const { data: perfil } = await supabase.from('perfis').select('empresa_id').eq('id', user.id).single();
+    const { data: perfil } = await supabase.from('perfis').select('empresa_id').eq('id', authUser.id).single();
     setEmpresaId(perfil.empresa_id);
 
     const { data: todosModulos } = await supabase.from('modulos').select('*').order('nome');
@@ -61,7 +63,6 @@ export function Modulos() {
     }
   }
 
-  // 🌟 LÓGICA DE CATEGORIZAÇÃO VISUAL
   const categorias = [
     {
       id: 'operacional',
@@ -83,7 +84,6 @@ export function Modulos() {
     }
   ];
 
-  // Função para retornar as "Badges" (etiquetas) indicando onde o módulo aparece
   const getImpactoVisual = (chave) => {
     switch(chave) {
       case 'ponto': return ['Dashboard', 'Menu Lateral'];
@@ -95,20 +95,38 @@ export function Modulos() {
     }
   };
 
+  const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Gestor';
+
   if (loading || loadingPermissao) return <Loading mensagem="A carregar módulos..." />;
 
-  // Descobrir módulos que não estão mapeados em nenhuma categoria (vão para "Outros")
   const chavesMapeadas = categorias.flatMap(c => c.chaves);
   const modulosOutros = modulos.filter(m => !chavesMapeadas.includes(m.chave));
 
   return (
-    <div className="layout">
+    <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans text-slate-800">
+      <div className={`fixed inset-0 bg-slate-900/40 z-40 backdrop-blur-sm transition-opacity lg:hidden ${menuAberto ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setMenuAberto(false)}></div>
       <Sidebar menuAberto={menuAberto} setMenuAberto={setMenuAberto} />
-      <div className="main-container">
-        
-        <header className="top-header">
-          <button className="mobile-header-btn" onClick={() => setMenuAberto(true)} style={{ background: 'none', border: 'none' }}><Menu size={24} /></button>
-          <div style={{ color: '#64748b' }}>Administração / <strong>Módulos do Sistema</strong></div>
+
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto relative">
+        <header className="sticky top-0 z-30 flex justify-between items-center px-6 py-4 bg-white/70 backdrop-blur-xl border-b border-slate-200/60">
+          <div className="flex items-center gap-4">
+            <button className="lg:hidden text-slate-500 hover:text-brand transition" onClick={() => setMenuAberto(true)}>
+              <Menu size={24} />
+            </button>
+            <div className="text-sm font-medium text-slate-500 hidden sm:block">
+              Administração <span className="text-slate-300 mx-2">/</span> <strong className="text-slate-800 uppercase tracking-wider text-[11px]">Módulos do Sistema</strong>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate('/perfil')}>
+            <div className="text-right hidden sm:block">
+              <div className="text-sm font-bold text-slate-800 group-hover:text-brand transition-colors">{userName}</div>
+              <div className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Ver Perfil</div>
+            </div>
+            <div className="w-9 h-9 rounded-full bg-brand text-white flex items-center justify-center font-bold text-sm shadow-sm">
+              {userName?.charAt(0)?.toUpperCase() || 'G'}
+            </div>
+          </div>
         </header>
 
         <main className="content p-6 lg:p-8 max-w-[1000px] mx-auto w-full">
@@ -129,14 +147,11 @@ export function Modulos() {
 
               return (
                 <div key={categoria.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                  
-                  {/* Cabeçalho da Categoria */}
                   <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center gap-3">
                     {categoria.icone}
                     <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide">{categoria.titulo}</h3>
                   </div>
 
-                  {/* Lista de Módulos (Linhas Compactas) */}
                   <div className="flex flex-col divide-y divide-slate-100">
                     {modulosDestaCategoria.map(mod => {
                       const tagsImpacto = getImpactoVisual(mod.chave);
@@ -146,8 +161,6 @@ export function Modulos() {
                           <div className="flex-1">
                             <div className="flex items-center gap-3 mb-1">
                               <h4 className={`text-sm font-bold ${mod.ativo ? 'text-slate-900' : 'text-slate-500'}`}>{mod.nome}</h4>
-                              
-                              {/* 🌟 ETIQUETAS MOSTRANDO ONDE AFETA */}
                               <div className="flex gap-2">
                                 {tagsImpacto.map(tag => (
                                   <span key={tag} className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider bg-brand/10 text-brand px-2 py-0.5 rounded-md border border-brand/20">
@@ -160,7 +173,6 @@ export function Modulos() {
                             <p className="text-xs text-slate-500 leading-relaxed">{mod.descricao}</p>
                           </div>
                           
-                          {/* 🌟 NOVO TOGGLE SWITCH COMPACTO */}
                           <div className="flex items-center gap-3">
                             <span className={`text-[10px] font-bold uppercase tracking-widest w-16 text-right ${mod.ativo ? 'text-brand' : 'text-slate-400'}`}>
                               {mod.ativo ? 'Ligado' : 'Desligado'}
@@ -178,7 +190,6 @@ export function Modulos() {
               );
             })}
 
-            {/* Categoria Genérica (Outros) */}
             {modulosOutros.length > 0 && (
               <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
                 <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center gap-3">
@@ -206,7 +217,6 @@ export function Modulos() {
                 </div>
               </div>
             )}
-
           </div>
         </main>
       </div>

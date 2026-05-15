@@ -15,6 +15,7 @@ export function Colaboradores() {
   const navigate = useNavigate();
   const { temAcesso: podeGerenciarUsuarios, loadingPermissao } = usePermission('usuarios.gerenciar');
   
+  const [user, setUser] = useState(null);
   const [colaboradores, setColaboradores] = useState([]);
   const [cargosRH, setCargosRH] = useState([]);
   const [departamentos, setDepartamentos] = useState([]);
@@ -42,38 +43,33 @@ export function Colaboradores() {
   }, []);
 
   const carregarDadosIniciais = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return navigate('/');
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) return navigate('/');
+    setUser(authUser);
 
-    const { data: perfil } = await supabase.from('perfis').select('empresa_id, tipo_perfil').eq('id', user.id).single();
+    const { data: perfil } = await supabase.from('perfis').select('empresa_id, tipo_perfil').eq('id', authUser.id).single();
     if (perfil?.tipo_perfil !== 'admin_master' && perfil?.tipo_perfil !== 'rh') {
       return navigate('/dashboard');
     }
     
     setEmpresaIdAdmin(perfil.empresa_id);
 
-    // 🌟 MÁGICA: Agora buscamos os perfis ativos E os convites pendentes
     const [resRoles, resColabs, resCargos, resDeptos, resConvites] = await Promise.all([
       supabase.from('roles').select('id, nome').eq('empresa_id', perfil.empresa_id),
       supabase.from('perfis').select('*').eq('empresa_id', perfil.empresa_id),
       supabase.from('cargos_rh').select('*').eq('empresa_id', perfil.empresa_id).order('nome', { ascending: true }),
       supabase.from('departamentos').select('*').eq('empresa_id', perfil.empresa_id).order('nome', { ascending: true }),
-      supabase.from('convites').select('*').eq('empresa_id', perfil.empresa_id) // Tabela de convites
+      supabase.from('convites').select('*').eq('empresa_id', perfil.empresa_id)
     ]);
 
-    // Descobre quais emails já completaram o cadastro
     const emailsAtivos = resColabs.data ? resColabs.data.map(p => p.email) : [];
-    
-    // Filtra apenas os convites que ainda não viraram perfis ativos
     const convitesPendentes = (resConvites.data || []).filter(c => !emailsAtivos.includes(c.email));
 
-    // Junta as duas listas e diz o status de cada um
     const listaCombinada = [
       ...(resColabs.data || []).map(c => ({ ...c, status_usuario: 'ativo' })),
       ...convitesPendentes.map(c => ({ ...c, is_convite: true, status_usuario: 'pendente' }))
     ];
 
-    // Ordena todos por nome em ordem alfabética
     listaCombinada.sort((a, b) => (a.nome_completo || '').localeCompare(b.nome_completo || ''));
 
     if (resRoles.data) setListaRoles(resRoles.data);
@@ -84,9 +80,6 @@ export function Colaboradores() {
     setLoading(false);
   };
 
-  // ==========================================
-  // FUNÇÕES DE ESTRUTURA (CARGOS E DEPTOS)
-  // ==========================================
   const handleAddCargo = async (e) => {
     e.preventDefault();
     if (!novoCargo.trim()) return;
@@ -143,9 +136,6 @@ export function Colaboradores() {
     carregarDadosIniciais();
   };
 
-  // ==========================================
-  // FUNÇÕES DE CONVITE E USUÁRIOS
-  // ==========================================
   const copiarLinkConvite = (id) => {
     const link = `${window.location.origin}/convite/${id}`;
     navigator.clipboard.writeText(link);
@@ -176,7 +166,7 @@ export function Colaboradores() {
     toast.success("Convite gerado! O colaborador já aparece na lista.");
     setModalConvite(false);
     setFormConvite({ email: '', nome_completo: '', cpf: '', cargo: '', departamento: '' }); 
-    carregarDadosIniciais(); // 🌟 Atualiza a lista na hora!
+    carregarDadosIniciais();
   };
 
   const abrirConfiguracao = async (colab) => {
@@ -201,26 +191,45 @@ export function Colaboradores() {
     carregarDadosIniciais();
   };
 
+  const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Gestor';
   const colaboradoresFiltrados = colaboradores.filter(c => c.nome_completo?.toLowerCase().includes(busca.toLowerCase()) || c.cpf?.includes(busca));
 
-  if (loading || loadingPermissao) return <Loading mensagem="Carregando dados..." />;
+  if (loading || loadingPermissao) return <Loading mensagem="A carregar colaboradores..." />;
 
   return (
-    <div className="layout">
-      <Sidebar menuAberto={menuAberto} setMenuAberto={setMenuAberto} />
+    <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans text-slate-800">
+      <div className={`fixed inset-0 bg-slate-900/40 z-40 backdrop-blur-sm transition-opacity lg:hidden ${menuAberto ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setMenuAberto(false)}></div>
       
-      <div className="main-container">
-        <header className="top-header">
-          <button className="mobile-header-btn" onClick={() => setMenuAberto(true)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><Menu size={24} /></button>
-          <div style={{ color: '#64748b' }}>Gestão / <strong>Administração de Pessoas</strong></div>
+      <Sidebar menuAberto={menuAberto} setMenuAberto={setMenuAberto} />
+
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto relative">
+        <header className="sticky top-0 z-30 flex justify-between items-center px-6 py-4 bg-white/70 backdrop-blur-xl border-b border-slate-200/60">
+          <div className="flex items-center gap-4">
+            <button className="lg:hidden text-slate-500 hover:text-brand transition" onClick={() => setMenuAberto(true)}>
+              <Menu size={24} />
+            </button>
+            <div className="text-sm font-medium text-slate-500 hidden sm:block">
+              Gestão <span className="text-slate-300 mx-2">/</span> <strong className="text-slate-800 uppercase tracking-wider text-[11px]">Equipa e Cargos</strong>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate('/perfil')}>
+            <div className="text-right hidden sm:block">
+              <div className="text-sm font-bold text-slate-800 group-hover:text-brand transition-colors">{userName}</div>
+              <div className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Ver Perfil</div>
+            </div>
+            <div className="w-9 h-9 rounded-full bg-brand text-white flex items-center justify-center font-bold text-sm shadow-sm">
+              {userName?.charAt(0)?.toUpperCase() || 'G'}
+            </div>
+          </div>
         </header>
 
-        <main className="content">
+        <main className="content p-6 lg:p-8 max-w-[1200px] mx-auto w-full">
           <div className="doohub-card" style={{ padding: 0, overflow: 'hidden' }}>
             
             <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
               <button onClick={() => setAbaAtiva('equipe')} style={{ flex: 1, padding: '1.25rem', border: 'none', background: abaAtiva === 'equipe' ? '#fff' : 'transparent', borderBottom: abaAtiva === 'equipe' ? '3px solid #0067ff' : 'none', fontWeight: 'bold', color: abaAtiva === 'equipe' ? '#0067ff' : '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                <Users size={18}/> Membros da Equipe
+                <Users size={18}/> Membros da Equipa
               </button>
               <button onClick={() => setAbaAtiva('estrutura')} style={{ flex: 1, padding: '1.25rem', border: 'none', background: abaAtiva === 'estrutura' ? '#fff' : 'transparent', borderBottom: abaAtiva === 'estrutura' ? '3px solid #0067ff' : 'none', fontWeight: 'bold', color: abaAtiva === 'estrutura' ? '#0067ff' : '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
                 <Building size={18}/> Estrutura (Cargos e Deptos)
@@ -272,7 +281,6 @@ export function Colaboradores() {
                               <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{c.departamento || '-'}</div>
                             </td>
                             
-                            {/* 🌟 NOVA COLUNA DE STATUS */}
                             <td>
                               {c.status_usuario === 'ativo' ? (
                                 <span style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 'bold', background: '#ecfdf5', color: '#10b981' }}>ATIVO</span>
@@ -291,7 +299,6 @@ export function Colaboradores() {
                               )}
                             </td>
                             
-                            {/* 🌟 AÇÕES INTELIGENTES CONFORME O STATUS */}
                             <td style={{ textAlign: 'right' }}>
                               {c.is_convite ? (
                                 <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
@@ -310,9 +317,8 @@ export function Colaboradores() {
                 </>
               )}
 
-              {/* ABA: ESTRUTURA (CARGOS E DEPTOS) - CÓDIGO MANTIDO */}
               {abaAtiva === 'estrutura' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', alignItems: 'start' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', alignItems: 'start' }}>
                   <div style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                     <h3 style={{ color: '#1e293b', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Briefcase size={18} color="#0067ff" /> Gerenciar Cargos</h3>
                     <form onSubmit={handleAddCargo} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
@@ -359,9 +365,9 @@ export function Colaboradores() {
         </main>
       </div>
 
-      {/* MODAL DE EDIÇÃO E CONVITE (MANTIDOS IGUAIS) */}
+      {/* MODAL DE EDIÇÃO */}
       {modalAberto && (
-        <div className="modal-overlay">
+        <div className="modal-overlay z-[60]">
           <div className="modal-box" style={{ maxWidth: '700px', maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="modal-header-box" style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -433,8 +439,9 @@ export function Colaboradores() {
         </div>
       )}
 
+      {/* MODAL DE CONVITE */}
       {modalConvite && (
-        <div className="modal-overlay">
+        <div className="modal-overlay z-[60]">
           <div className="modal-box" style={{ maxWidth: '500px' }}>
             <div className="modal-header-box">
               <h3>Cadastrar Colaborador</h3>

@@ -8,14 +8,13 @@ import { Loading } from '../components/Loading';
 
 export function Empresa() {
   const navigate = useNavigate();
+  const [user, setUser] = useState(null);
   const [menuAberto, setMenuAberto] = useState(false);
   const [loading, setLoading] = useState(true);
   const [perfilUsuario, setPerfilUsuario] = useState(null);
   
-  // Array para controlar os propósitos dinâmicos
   const [propositos, setPropositos] = useState([""]); 
 
-  // 🌟 CORREÇÃO 1: Adicionado cor_tema no estado inicial
   const [dadosEmpresa, setDadosEmpresa] = useState({
     nome_fantasia: '',
     razao_social: '',
@@ -33,10 +32,11 @@ export function Empresa() {
   }, []);
 
   const carregarDados = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return navigate('/');
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) return navigate('/');
+    setUser(authUser);
 
-    const { data: perfil } = await supabase.from('perfis').select('empresa_id, tipo_perfil').eq('id', user.id).single();
+    const { data: perfil } = await supabase.from('perfis').select('empresa_id, tipo_perfil').eq('id', authUser.id).single();
 
     if (perfil?.tipo_perfil !== 'admin_master' && perfil?.tipo_perfil !== 'rh') {
       return navigate('/dashboard');
@@ -48,14 +48,11 @@ export function Empresa() {
     
     if (empresa) {
       setDadosEmpresa(empresa);
-      
-      // Tenta converter o texto salvo em array (se for um JSON válido)
       if (empresa.proposito) {
         try {
           const parsed = JSON.parse(empresa.proposito);
           setPropositos(Array.isArray(parsed) ? parsed : [empresa.proposito]);
         } catch (e) {
-          // Se não for JSON (sistema antigo), coloca o texto normal no primeiro slot
           setPropositos([empresa.proposito]);
         }
       }
@@ -63,18 +60,15 @@ export function Empresa() {
     setLoading(false);
   };
 
-  // Função para fazer Upload da imagem para o Supabase Storage
   const handleUpload = async (e, campoAlvo) => {
     const file = e.target.files[0];
     if (!file) return;
 
     toast.loading(`A fazer upload...`, { id: 'upload' });
 
-    // Cria um nome de ficheiro único para não sobrescrever
     const fileExt = file.name.split('.').pop();
     const fileName = `${perfilUsuario.empresa_id}-${campoAlvo}-${Date.now()}.${fileExt}`;
 
-    // Faz o upload para o bucket 'logos'
     const { error: uploadError } = await supabase.storage
       .from('logos')
       .upload(fileName, file, { upsert: true });
@@ -84,15 +78,11 @@ export function Empresa() {
       return;
     }
 
-    // Pega a URL pública da imagem recém-enviada
     const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(fileName);
-    
-    // Atualiza o formulário com a nova URL
     setDadosEmpresa({ ...dadosEmpresa, [campoAlvo]: publicUrl });
     toast.success('Imagem carregada com sucesso!', { id: 'upload' });
   };
 
-  // Funções para manipular a lista de propósitos
   const adicionarProposito = () => {
     if (propositos.length < 5) setPropositos([...propositos, ""]);
   };
@@ -105,17 +95,14 @@ export function Empresa() {
 
   const removerProposito = (index) => {
     const novos = propositos.filter((_, i) => i !== index);
-    setPropositos(novos.length ? novos : [""]); // Garante que fica sempre pelo menos 1 vazio
+    setPropositos(novos.length ? novos : [""]);
   };
 
   const handleSalvar = async (e) => {
     e.preventDefault();
-    
-    // Limpa os campos vazios e converte o array de volta para texto (JSON)
     const propositosLimpos = propositos.filter(p => p.trim() !== "");
     const propositoFinalString = JSON.stringify(propositosLimpos);
 
-    // 🌟 CORREÇÃO 2: Adicionado cor_tema no update do supabase
     const { error } = await supabase
       .from('empresas')
       .update({
@@ -139,31 +126,46 @@ export function Empresa() {
     }
   };
 
-  if (loading) return <Loading mensagem="Carregando dados da empresa..." />;
+  const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Gestor';
+
+  if (loading) return <Loading mensagem="A carregar dados da empresa..." />;
 
   return (
-    <div className="layout">
-      <div className={`overlay ${menuAberto ? 'open' : ''}`} onClick={() => setMenuAberto(false)}></div>
+    <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans text-slate-800">
+      <div className={`fixed inset-0 bg-slate-900/40 z-40 backdrop-blur-sm transition-opacity lg:hidden ${menuAberto ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setMenuAberto(false)}></div>
       <Sidebar menuAberto={menuAberto} setMenuAberto={setMenuAberto} />
 
-      <div className="main-container">
-        <header className="top-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button className="mobile-header-btn" onClick={() => setMenuAberto(true)} style={{ background: 'none', border: 'none' }}><Menu size={24} /></button>
-            <div style={{ color: '#64748b' }}>Administração / <strong>Dados da Empresa</strong></div>
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto relative">
+        <header className="sticky top-0 z-30 flex justify-between items-center px-6 py-4 bg-white/70 backdrop-blur-xl border-b border-slate-200/60">
+          <div className="flex items-center gap-4">
+            <button className="lg:hidden text-slate-500 hover:text-brand transition" onClick={() => setMenuAberto(true)}>
+              <Menu size={24} />
+            </button>
+            <div className="text-sm font-medium text-slate-500 hidden sm:block">
+              Administração <span className="text-slate-300 mx-2">/</span> <strong className="text-slate-800 uppercase tracking-wider text-[11px]">Dados da Empresa</strong>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate('/perfil')}>
+            <div className="text-right hidden sm:block">
+              <div className="text-sm font-bold text-slate-800 group-hover:text-brand transition-colors">{userName}</div>
+              <div className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Ver Perfil</div>
+            </div>
+            <div className="w-9 h-9 rounded-full bg-brand text-white flex items-center justify-center font-bold text-sm shadow-sm">
+              {userName?.charAt(0)?.toUpperCase() || 'G'}
+            </div>
           </div>
         </header>
 
-        <main className="content">
-          <div style={{ backgroundColor: '#fff', padding: '2rem', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
+        <main className="content p-6 lg:p-8 max-w-[1200px] mx-auto w-full">
+          <div style={{ backgroundColor: '#fff', padding: '2rem', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' }}>
             <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#1e293b', marginBottom: '2rem' }}>
-              <Building2 color="#0067ff" /> Configurações da Empresa
+              <Building2 color="#0067ff" /> Configurações Gerais
             </h2>
 
-            <form onSubmit={handleSalvar} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+            <form onSubmit={handleSalvar} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
               
-              {/* CAMPO: LOGOTIPO */}
-              <div className="input-group" style={{ gridColumn: 'span 2' }}>
+              <div className="input-group" style={{ gridColumn: '1 / -1' }}>
                 <label>Logotipo</label>
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
                   <input 
@@ -181,8 +183,7 @@ export function Empresa() {
                 </div>
               </div>
 
-              {/* CAMPO: FAVICON */}
-              <div className="input-group" style={{ gridColumn: 'span 2' }}>
+              <div className="input-group" style={{ gridColumn: '1 / -1' }}>
                 <label>Ícone do Navegador (Favicon)</label>
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
                   <input 
@@ -200,8 +201,7 @@ export function Empresa() {
                 </div>
               </div>
 
-              {/* 🌟 CORREÇÃO 3: Campo de Cor com a variável correta */}
-              <div className="input-group" style={{ gridColumn: 'span 2' }}>
+              <div className="input-group" style={{ gridColumn: '1 / -1' }}>
                 <label>Cor Principal da Plataforma</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                   <input 
@@ -236,13 +236,12 @@ export function Empresa() {
                 <input className="form-control" value={dadosEmpresa.telefone || ''} onChange={e => setDadosEmpresa({ ...dadosEmpresa, telefone: e.target.value })} />
               </div>
 
-              <div className="input-group" style={{ gridColumn: 'span 2' }}>
+              <div className="input-group" style={{ gridColumn: '1 / -1' }}>
                 <label>Endereço Completo</label>
                 <textarea className="form-control" rows="3" value={dadosEmpresa.endereco || ''} onChange={e => setDadosEmpresa({ ...dadosEmpresa, endereco: e.target.value })} />
               </div>
 
-              {/* CAMPO: MÚLTIPLOS PROPÓSITOS */}
-              <div className="input-group" style={{ gridColumn: 'span 2', background: '#f8fafc', padding: '1.5rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <div className="input-group" style={{ gridColumn: '1 / -1', background: '#f8fafc', padding: '1.5rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                   <label style={{ margin: 0 }}>Frases de Propósito (Máx 5)</label>
                   <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Aparecem de forma rotativa no Dashboard</span>
@@ -276,14 +275,14 @@ export function Empresa() {
                     type="button" 
                     onClick={adicionarProposito}
                     className="btn-secondary" 
-                    style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}
+                    style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', width: 'max-content' }}
                   >
                     <Plus size={16} /> Adicionar Frase
                   </button>
                 )}
               </div>
 
-              <div style={{ gridColumn: 'span 2', marginTop: '1rem', display: 'flex', justifyContent: 'flex-start' }}>
+              <div style={{ gridColumn: '1 / -1', marginTop: '1rem', display: 'flex', justifyContent: 'flex-start' }}>
                 <button type="submit" className="btn-salvar">
                   <Save size={18} /> Salvar Alterações
                 </button>

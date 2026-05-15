@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { Sidebar } from '../components/Sidebar';
 import { ShieldCheck, Plus, Trash2, Menu, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export function Permissions() {
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
   const [roles, setRoles] = useState([]);
   const [permissoes, setPermissoes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [menuAberto, setMenuAberto] = useState(false);
   const [novoCargo, setNovoCargo] = useState('');
   
-  // Estados para o Cargo selecionado
   const [roleSelecionada, setRoleSelecionada] = useState(null);
   const [editandoNome, setEditandoNome] = useState('');
 
@@ -20,8 +22,11 @@ export function Permissions() {
   }, []);
 
   async function carregarDados() {
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data: perfil } = await supabase.from('perfis').select('empresa_id').eq('id', user.id).single();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) return navigate('/');
+    setUser(authUser);
+
+    const { data: perfil } = await supabase.from('perfis').select('empresa_id').eq('id', authUser.id).single();
 
     const [resRoles, resPerms] = await Promise.all([
       supabase.from('roles').select('*, role_permissoes(permissao_id)').eq('empresa_id', perfil.empresa_id).order('criado_em', { ascending: true }),
@@ -31,11 +36,10 @@ export function Permissions() {
     setRoles(resRoles.data || []);
     setPermissoes(resPerms.data || []);
     
-    // Atualiza os dados da role selecionada se ela já estiver aberta
     if (roleSelecionada) {
       const atualizada = resRoles.data?.find(r => r.id === roleSelecionada.id);
       if (atualizada) setRoleSelecionada(atualizada);
-      else setRoleSelecionada(null); // Caso ela tenha sido excluída
+      else setRoleSelecionada(null);
     }
     
     setLoading(false);
@@ -45,7 +49,6 @@ export function Permissions() {
     e.preventDefault();
     if (!novoCargo.trim()) return;
 
-    const { data: { user } } = await supabase.auth.getUser();
     const { data: perfil } = await supabase.from('perfis').select('empresa_id').eq('id', user.id).single();
 
     const { error } = await supabase.from('roles').insert([
@@ -93,13 +96,14 @@ export function Permissions() {
     carregarDados();
   }
 
-  // MÁGICA DE UX: Agrupa as permissões por "Módulo" (ex: Admin, Ponto) para facilitar a leitura
   const permissoesPorModulo = permissoes.reduce((acc, perm) => {
     const mod = perm.modulo || 'Outros';
     if (!acc[mod]) acc[mod] = [];
     acc[mod].push(perm);
     return acc;
   }, {});
+
+  const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Gestor';
 
   return (
     <>
@@ -108,19 +112,36 @@ export function Permissions() {
         @media (max-width: 768px) { .roles-grid { grid-template-columns: 1fr; } }
       `}</style>
 
-      <div className="layout">
+      <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans text-slate-800">
+        <div className={`fixed inset-0 bg-slate-900/40 z-40 backdrop-blur-sm transition-opacity lg:hidden ${menuAberto ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setMenuAberto(false)}></div>
         <Sidebar menuAberto={menuAberto} setMenuAberto={setMenuAberto} />
-        <div className="main-container">
-          <header className="top-header">
-             <button className="mobile-header-btn" onClick={() => setMenuAberto(true)}><Menu /></button>
-             <div style={{color: '#64748b'}}>Configurações / <strong>Permissões e Cargos</strong></div>
+
+        <div className="flex-1 flex flex-col h-screen overflow-y-auto relative">
+          <header className="sticky top-0 z-30 flex justify-between items-center px-6 py-4 bg-white/70 backdrop-blur-xl border-b border-slate-200/60">
+            <div className="flex items-center gap-4">
+              <button className="lg:hidden text-slate-500 hover:text-brand transition" onClick={() => setMenuAberto(true)}>
+                <Menu size={24} />
+              </button>
+              <div className="text-sm font-medium text-slate-500 hidden sm:block">
+                Configurações <span className="text-slate-300 mx-2">/</span> <strong className="text-slate-800 uppercase tracking-wider text-[11px]">Permissões e Cargos</strong>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3 cursor-pointer group" onClick={() => navigate('/perfil')}>
+              <div className="text-right hidden sm:block">
+                <div className="text-sm font-bold text-slate-800 group-hover:text-brand transition-colors">{userName}</div>
+                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Ver Perfil</div>
+              </div>
+              <div className="w-9 h-9 rounded-full bg-brand text-white flex items-center justify-center font-bold text-sm shadow-sm">
+                {userName?.charAt(0)?.toUpperCase() || 'G'}
+              </div>
+            </div>
           </header>
 
-          <main className="content">
+          <main className="content p-6 lg:p-8 max-w-[1200px] mx-auto w-full">
             <div className="roles-grid">
               
-              {/* COLUNA ESQUERDA: LISTA DE CARGOS E CRIAÇÃO */}
-              <section className="doohub-card" style={{ padding: '0', overflow: 'hidden', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)' }}>
+              <section className="bg-white rounded-[24px] border border-slate-200/60 shadow-sm" style={{ padding: '0', overflow: 'hidden', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)' }}>
                 <div style={{ padding: '1.5rem', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
                   <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#1e293b' }}>Seus Cargos</h3>
                 </div>
@@ -165,16 +186,13 @@ export function Permissions() {
                       required 
                       style={{ flex: 1 }}
                     />
-                    <button type="submit" className="btn-primary" style={{ padding: '0 1rem' }} title="Criar Cargo"><Plus size={18} /></button>
+                    <button type="submit" className="btn-primary" style={{ padding: '0 1rem', height: '42px', margin: 0 }} title="Criar Cargo"><Plus size={18} /></button>
                   </form>
                 </div>
               </section>
 
-              {/* COLUNA DIREITA: DETALHES DO CARGO (EDITAR NOME E PERMISSÕES) */}
               {roleSelecionada ? (
-                <section className="doohub-card" style={{ padding: '2rem' }}>
-                  
-                  {/* CABEÇALHO DO CARGO (EDITAR NOME E EXCLUIR) */}
+                <section className="bg-white rounded-[24px] border border-slate-200/60 shadow-sm" style={{ padding: '2rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem', paddingBottom: '1.5rem', borderBottom: '1px solid #e2e8f0' }}>
                     <div style={{ flex: 1, minWidth: '250px', maxWidth: '400px' }}>
                       <label style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>Configurando Cargo</label>
@@ -185,7 +203,7 @@ export function Permissions() {
                           onChange={e => setEditandoNome(e.target.value)} 
                           style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#1e293b' }}
                         />
-                        <button onClick={handleAtualizarNome} className="btn-secondary" style={{ padding: '0 1rem' }} title="Salvar Nome">
+                        <button onClick={handleAtualizarNome} className="btn-secondary" style={{ padding: '0 1rem', margin: 0, height: 'auto' }} title="Salvar Nome">
                           <Save size={18} />
                         </button>
                       </div>
@@ -194,16 +212,14 @@ export function Permissions() {
                     <button 
                       onClick={() => handleExcluirRole(roleSelecionada.id)}
                       className="btn-secondary" 
-                      style={{ color: '#ef4444', borderColor: '#fee2e2', background: '#fef2f2', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                      style={{ color: '#ef4444', borderColor: '#fee2e2', background: '#fef2f2', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}
                     >
                       <Trash2 size={16} /> Excluir Cargo
                     </button>
                   </div>
 
-                  {/* LISTA DE PERMISSÕES AGRUPADAS */}
                   <div>
                     <h3 style={{ marginBottom: '1.5rem', color: '#1e293b' }}>Acessos Liberados</h3>
-                    
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                       {Object.entries(permissoesPorModulo).map(([modulo, perms]) => (
                         <div key={modulo} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
@@ -232,17 +248,15 @@ export function Permissions() {
                         </div>
                       ))}
                     </div>
-
                   </div>
                 </section>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', background: '#f8fafc', borderRadius: '20px', border: '2px dashed #e2e8f0' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', background: '#f8fafc', borderRadius: '24px', border: '2px dashed #e2e8f0' }}>
                   <ShieldCheck size={48} style={{ marginBottom: '1rem', opacity: 0.5 }} />
                   <h3 style={{ color: '#64748b' }}>Selecione um Cargo</h3>
                   <p style={{ fontSize: '0.9rem' }}>Escolha um cargo na lista ao lado para configurar.</p>
                 </div>
               )}
-
             </div>
           </main>
         </div>
